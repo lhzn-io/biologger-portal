@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply antialiased text-slate-300 bg-[#0F141C] font-sans;
+    background-image: linear-gradient(to bottom, #0C1017 0%, #121822 100%);
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display tracking-tight text-slate-100 font-semibold;
+  }
+}
+
+@layer components {
+  /* Crisp academic panel styling instead of glowing glassmorphism */
+  .glass-panel {
+    @apply bg-[#151C27] border border-[#232D3E] rounded-lg transition-all duration-200 shadow-sm;
+  }
+  
+  .glass-panel-hover {
+    @apply hover:border-slate-700 hover:bg-[#18212E];
+  }
+  
+  .glass-panel-amber-hover {
+    @apply hover:border-slate-700 hover:bg-[#18212E];
+  }
+
+  /* Solid institutional WHOI Blue styling */
+  .interactive-button-primary {
+    @apply px-4 py-2 bg-[#004B87] hover:bg-[#003C6C] text-white rounded font-medium transition-all duration-150 font-display flex items-center justify-center gap-2 text-xs border border-[#003C6C];
+  }
+
+  .interactive-button-secondary {
+    @apply px-4 py-2 bg-[#1A2332] hover:bg-[#202C3F] border border-[#2C3B52] text-slate-300 hover:text-white rounded font-medium transition-all duration-150 font-display flex items-center justify-center gap-2 text-xs;
+  }
+
+  .interactive-button-amber {
+    @apply px-4 py-2 bg-[#1A2332] hover:bg-[#202C3F] border border-[#2C3B52] text-slate-300 hover:text-white rounded font-medium transition-all duration-150 font-display flex items-center justify-center gap-2 text-xs;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-[#0A0D14] rounded-full;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-[#232D3E] hover:bg-[#2C3B52] rounded-full transition-all;
+  }
+}
