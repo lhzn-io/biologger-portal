@@ -402,11 +402,6 @@ function runDeepValidationOnDisk(filePath: string): Promise<any> {
   });
 }
 
-function getVlmBaseUrl() {
-  const logFile = '/Users/lhzn/Projects/whoi-mpg/biologger-expert/logs/mlx-vlm-server.log';
-  return fs.existsSync(logFile) ? 'http://127.0.0.1:8080/v1' : 'http://garnet.localdomain:8080/v1';
-}
-
 function readLastLinesLocal(filePath: string, maxLines: number): string {
   try {
     const stats = fs.statSync(filePath);
@@ -462,38 +457,6 @@ function parseVlmLogLines(content: string, stream: 'vlm-stdout' | 'vlm-stderr'):
     });
   }
   return result;
-}
-
-async function dispatchCompletions(messages: any[], res: any) {
-  try {
-    const url = `${getVlmBaseUrl()}/chat/completions`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'google/gemma-4-26b-a4b-it',
-        messages,
-        temperature: 0.7,
-        repetition_penalty: 1.2
-      })
-    });
-    
-    if (!response.ok) {
-      const errText = await response.text();
-      res.statusCode = response.status;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ error: `VLM server error: ${errText}` }));
-      return;
-    }
-    
-    const data = await response.json();
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify(data));
-  } catch (err: any) {
-    res.statusCode = 500;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ error: `Failed to connect to VLM server: ${err.message}` }));
-  }
 }
 
 // Custom middleware handler for validation history API
@@ -876,58 +839,47 @@ function createValidationApiMiddleware() {
               return;
             }
 
-            if (messages.length > 6) {
-              const systemMessage = messages[0];
-              const activeMessages = messages.slice(messages.length - 4);
-              const middleMessages = messages.slice(1, messages.length - 4);
-              
-              const textToSummarize = middleMessages
-                .map((m: any) => `${m.role.toUpperCase()}: ${m.content}`)
-                .join('\n\n');
-                
-              try {
-                const summaryResponse = await fetch(`${getVlmBaseUrl()}/chat/completions`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    model: 'google/gemma-4-26b-a4b-it',
-                    messages: [
-                      {
-                        role: 'system',
-                        content: 'Summarize the following scientific discussion history between the user and assistant. Focus on preserving specific dataset IDs, lat/lon coordinates, and calibration offsets. Be concise.'
-                      },
-                      {
-                        role: 'user',
-                        content: textToSummarize
-                      }
-                    ],
-                    temperature: 0.1,
-                    repetition_penalty: 1.2
-                  })
-                });
+            const latestMessage = messages[messages.length - 1];
+            const queryText = latestMessage ? latestMessage.content : '';
+            const sessionId = req.headers['x-session-id'] || 'default-session';
 
-                if (summaryResponse.ok) {
-                  const summaryJson: any = await summaryResponse.json();
-                  const summaryText = summaryJson.choices?.[0]?.message?.content || 'No summary generated.';
-                  
-                  const compressedMessages = [
-                    systemMessage,
-                    {
-                      role: 'system',
-                      content: `Summary of earlier conversation: ${summaryText}`
-                    },
-                    ...activeMessages
-                  ];
-                  
-                  await dispatchCompletions(compressedMessages, res);
-                } else {
-                  await dispatchCompletions(messages, res);
-                }
-              } catch (err) {
-                await dispatchCompletions(messages, res);
+            try {
+              const response = await fetch('http://localhost:42617/webhook', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-Session-Id': sessionId
+                },
+                body: JSON.stringify({
+                  message: queryText
+                })
+              });
+
+              if (!response.ok) {
+                const errText = await response.text();
+                res.statusCode = response.status;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ error: `ZeroClaw Gateway error: ${errText}` }));
+                return;
               }
-            } else {
-              await dispatchCompletions(messages, res);
+
+              const data: any = await response.json();
+              const wrapped = {
+                choices: [
+                  {
+                    message: {
+                      role: 'assistant',
+                      content: data.response || 'No response returned from model.'
+                    }
+                  }
+                ]
+              };
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify(wrapped));
+            } catch (err: any) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ error: 'Failed to connect to ZeroClaw Gateway: ' + err.message }));
             }
           } catch (err: any) {
             res.statusCode = 400;
