@@ -35,6 +35,11 @@ export default function AIAssistantSidebar({
   const [isTyping, setIsTyping] = useState(false)
   
   const chatEndRef = useRef<HTMLDivElement>(null)
+  const sessionIdRef = useRef<string>('')
+
+  if (!sessionIdRef.current) {
+    sessionIdRef.current = 'session_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now().toString(36);
+  }
 
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -65,7 +70,8 @@ export default function AIAssistantSidebar({
     fetch('/api/chat', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'X-Session-Id': sessionIdRef.current
       },
       body: JSON.stringify({ messages: apiMessages })
     })
