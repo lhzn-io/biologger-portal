@@ -3,7 +3,9 @@ import {
   Send, 
   Settings, 
   X,
-  Activity
+  Activity,
+  Trash2,
+  Plus
 } from 'lucide-react'
 import type { Dataset } from '../App'
 
@@ -33,13 +35,104 @@ export default function AIAssistantSidebar({
   const [tunnelUrl, setTunnelUrl] = useState('https://biologger-expert.lhzn.io')
   const [showConfig, setShowConfig] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
+  const [sessionsList, setSessionsList] = useState<any[]>([])
+  const [selectedSessionId, setSelectedSessionId] = useState<string>('')
   
   const chatEndRef = useRef<HTMLDivElement>(null)
   const sessionIdRef = useRef<string>('')
 
-  if (!sessionIdRef.current) {
-    sessionIdRef.current = 'session_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now().toString(36);
-  }
+  const fetchSessions = () => {
+    fetch('/api/history/sessions')
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP status ${res.status}`);
+        return res.json();
+      })
+      .then(data => {
+        const list = data.sessions || [];
+        list.sort((a: any, b: any) => new Date(b.last_activity).getTime() - new Date(a.last_activity).getTime());
+        setSessionsList(list);
+      })
+      .catch(err => {
+        console.error('Failed to fetch sessions:', err);
+      });
+  };
+
+  useEffect(() => {
+    const newId = 'session_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now().toString(36);
+    setSelectedSessionId(newId);
+    sessionIdRef.current = newId;
+    fetchSessions();
+  }, []);
+
+  useEffect(() => {
+    if (showConfig) {
+      fetchSessions();
+    }
+  }, [showConfig]);
+
+  const handleStartNewSession = () => {
+    const newId = 'session_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now().toString(36);
+    setSelectedSessionId(newId);
+    sessionIdRef.current = newId;
+    setMessages([
+      { role: 'assistant', content: 'Onboarded to WHOI Marine Predators Group expert assistant. Primary identity domain: lhzn.io authenticated. How can I assist your mesopelagic shark or swordfish tracking analysis today?', timestamp: new Date().toTimeString().split(' ')[0].substring(0, 5) }
+    ]);
+  };
+
+  const handleLoadSession = (sessionId: string) => {
+    setIsTyping(true);
+    fetch(`/api/history/sessions/${sessionId}`)
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP status ${res.status}`);
+        return res.json();
+      })
+      .then(data => {
+        setIsTyping(false);
+        setSelectedSessionId(sessionId);
+        sessionIdRef.current = sessionId;
+        
+        const loadedMessages = (data.messages || []).map((m: any) => ({
+          role: m.role === 'assistant' ? 'assistant' : 'user',
+          content: m.content || '',
+          timestamp: m.timestamp || new Date().toTimeString().split(' ')[0].substring(0, 5)
+        }));
+
+        if (loadedMessages.length === 0) {
+          setMessages([
+            { role: 'assistant', content: 'Onboarded to WHOI Marine Predators Group expert assistant. Primary identity domain: lhzn.io authenticated. How can I assist your mesopelagic shark or swordfish tracking analysis today?', timestamp: new Date().toTimeString().split(' ')[0].substring(0, 5) }
+          ]);
+        } else {
+          setMessages(loadedMessages);
+        }
+      })
+      .catch(err => {
+        setIsTyping(false);
+        console.error('Failed to load session:', err);
+        const time = new Date().toTimeString().split(' ')[0].substring(0, 5);
+        setMessages([
+          { role: 'assistant', content: `Failed to load conversation history: ${err.message}`, timestamp: time }
+        ]);
+      });
+  };
+
+  const handleDeleteSession = (sessionId: string) => {
+    fetch(`/api/history/sessions/${sessionId}`, {
+      method: 'DELETE'
+    })
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP status ${res.status}`);
+        return res.json();
+      })
+      .then(() => {
+        fetchSessions();
+        if (selectedSessionId === sessionId) {
+          handleStartNewSession();
+        }
+      })
+      .catch(err => {
+        console.error('Failed to delete session:', err);
+      });
+  };
 
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -91,6 +184,7 @@ export default function AIAssistantSidebar({
         const responseTime = new Date().toTimeString().split(' ')[0].substring(0, 5)
         const newAiMsg: Message = { role: 'assistant', content: aiText, timestamp: responseTime }
         setMessages(prev => [...prev, newAiMsg])
+        fetchSessions()
       })
       .catch(err => {
         setIsTyping(false)
@@ -174,6 +268,58 @@ export default function AIAssistantSidebar({
               />
             </div>
           )}
+
+          {/* Saved Sessions Section */}
+          <div className="pt-3 border-t border-slate-800 space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-slate-500 uppercase tracking-wider">Saved Sessions:</span>
+              <button 
+                onClick={handleStartNewSession}
+                className="flex items-center gap-1 px-1.5 py-0.5 bg-[#004B87]/15 hover:bg-[#004B87]/30 text-[#3B9CFF] border border-[#004B87]/30 rounded font-semibold transition-all cursor-pointer"
+                title="Start New Chat Session"
+              >
+                <Plus className="h-2.5 w-2.5" />
+                <span>New</span>
+              </button>
+            </div>
+            
+            {sessionsList.length === 0 ? (
+              <div className="text-[10px] text-slate-500 italic py-1">No saved sessions found.</div>
+            ) : (
+              <div className="max-h-36 overflow-y-auto space-y-1.5 custom-scrollbar pr-1">
+                {sessionsList.map((s) => (
+                  <div 
+                    key={s.session_id}
+                    className={`flex justify-between items-center p-1.5 rounded transition-all cursor-pointer border ${
+                      selectedSessionId === s.session_id
+                        ? 'bg-[#004B87]/10 border-[#004B87]/40 text-slate-200'
+                        : 'bg-slate-950/30 border-transparent text-slate-400 hover:bg-slate-900/50 hover:text-slate-350'
+                    }`}
+                    onClick={() => handleLoadSession(s.session_id)}
+                  >
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <span className="font-mono text-[9px] truncate" title={s.session_id}>
+                        {s.session_id.startsWith('session_') ? s.session_id.substring(8, 20) : s.session_id.substring(0, 12)}...
+                      </span>
+                      <span className="text-[8px] text-slate-500 font-mono">
+                        {new Date(s.last_activity).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} ({s.message_count} msg)
+                      </span>
+                    </div>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteSession(s.session_id);
+                      }}
+                      className="p-1 rounded text-slate-650 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer"
+                      title="Delete Session"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

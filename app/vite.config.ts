@@ -823,6 +823,75 @@ function createValidationApiMiddleware() {
       return;
     }
 
+    if (pathname === '/api/history/sessions' && req.method === 'GET') {
+      try {
+        const response = await fetch('http://localhost:42617/api/sessions');
+        if (!response.ok) {
+          const errText = await response.text();
+          res.statusCode = response.status;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: `ZeroClaw Gateway error: ${errText}` }));
+          return;
+        }
+        const data = await response.json();
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify(data));
+      } catch (err: any) {
+        res.statusCode = 500;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: 'Failed to connect to ZeroClaw Gateway: ' + err.message }));
+      }
+      return;
+    }
+
+    const sessionMessagesMatch = pathname.match(/^\/api\/history\/sessions\/([^\/]+)$/);
+    if (sessionMessagesMatch) {
+      const sessionId = sessionMessagesMatch[1];
+      if (req.method === 'GET') {
+        try {
+          const response = await fetch(`http://localhost:42617/api/sessions/${sessionId}/messages`);
+          if (!response.ok) {
+            const errText = await response.text();
+            res.statusCode = response.status;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: `ZeroClaw Gateway error: ${errText}` }));
+            return;
+          }
+          const data = await response.json();
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify(data));
+        } catch (err: any) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'Failed to connect to ZeroClaw Gateway: ' + err.message }));
+        }
+        return;
+      }
+
+      if (req.method === 'DELETE') {
+        try {
+          const response = await fetch(`http://localhost:42617/api/sessions/${sessionId}`, {
+            method: 'DELETE'
+          });
+          if (!response.ok) {
+            const errText = await response.text();
+            res.statusCode = response.status;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: `ZeroClaw Gateway error: ${errText}` }));
+            return;
+          }
+          const data = await response.json();
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify(data));
+        } catch (err: any) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'Failed to connect to ZeroClaw Gateway: ' + err.message }));
+        }
+        return;
+      }
+    }
+
     if (pathname === '/api/chat') {
       if (req.method === 'POST') {
         let body = '';
