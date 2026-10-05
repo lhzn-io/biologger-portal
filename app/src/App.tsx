@@ -260,7 +260,7 @@ export default function App() {
   const [terminalLogs, setTerminalLogs] = useState<SimLog[]>([
     { timestamp: '16:00:12', stream: 'system', message: 'ZeroMQ socket interface bound successfully to virtual interface WSL2 (Port 5555)' },
     { timestamp: '16:01:05', stream: 'system', message: 'NVIDIA AGX Orin ZeroClaw gateway channel established secure handshake with Garnet Mac Studio (192.168.7.4)' },
-    { timestamp: '16:03:22', stream: 'stdout', message: 'topobathysim client successfully resolved point-cloud tiles from garnet.localdomain:9595' }
+    { timestamp: '16:03:22', stream: 'stdout', message: 'topobathykit client successfully resolved point-cloud tiles from garnet.internal:9595' }
   ])
 
   useEffect(() => {
