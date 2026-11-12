@@ -278,7 +278,7 @@ def _deep_report(
     f["time_format"] = fmt
     f["first_time"], f["last_time"] = _iso(s.first), _iso(s.last)
     f["duration_s"] = None if s.first is None or s.last is None else round(s.last - s.first, 3)
-    f["median_dt_s"] = s.median_dt
+    f["median_dt_s"] = round(s.median_dt, 6) if s.median_dt else None
     base_rate = 1.0 / s.median_dt if s.median_dt else None
     f["rate_hz"] = round(base_rate, 4) if base_rate else None
 

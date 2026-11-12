@@ -1,7 +1,13 @@
 import { NavLink, Route, Routes } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { getJson, type Health } from "./lib/api";
+import { useMe } from "./lib/queries";
+import DeploymentPage from "./routes/DeploymentPage";
+import Deployments from "./routes/Deployments";
+import Matrix from "./routes/Matrix";
+import Overview from "./routes/Overview";
 import Placeholder from "./routes/Placeholder";
+import Register from "./routes/Register";
 
 const NAV = [
   { to: "/", label: "Overview" },
@@ -27,15 +33,22 @@ export default function App() {
             </NavLink>
           ))}
         </nav>
-        <ServerStatus />
+        <span className="ml-auto flex items-center gap-4">
+          <WhoAmI />
+          <ServerStatus />
+        </span>
       </header>
       <main className="flex-1 p-4">
         <Routes>
-          <Route path="/" element={<Placeholder title="Overview" note="All deployments on one map (Phase D3)." />} />
-          <Route path="/deployments" element={<Placeholder title="Deployments" note="Catalog list (Phase D2)." />} />
-          <Route path="/deployments/:id" element={<Placeholder title="Deployment" note="Metadata, files, validation, tracks (Phase D2)." />} />
-          <Route path="/matrix" element={<Placeholder title="Files" note="Deployments by file kind (Phase D2)." />} />
-          <Route path="/register" element={<Placeholder title="Register" note="Stage, validate and register files (Phase D2)." />} />
+          <Route path="/" element={<Overview />} />
+          <Route path="/deployments" element={<Deployments />} />
+          <Route path="/deployments/:id" element={<DeploymentPage />} />
+          <Route
+            path="/deployments/:id/track/:run"
+            element={<Placeholder title="Track viewer" note="2D map and 3D view (Phase D3)." />}
+          />
+          <Route path="/matrix" element={<Matrix />} />
+          <Route path="/register" element={<Register />} />
           <Route path="*" element={<Placeholder title="Not found" note="No page at this address." />} />
         </Routes>
       </main>
@@ -43,9 +56,20 @@ export default function App() {
   );
 }
 
+function WhoAmI() {
+  const me = useMe().data;
+  if (!me) return null;
+  return (
+    <span className="text-xs text-muted">
+      {me.email}
+      {me.editor ? " (editor)" : " (read only)"}
+    </span>
+  );
+}
+
 export function ServerStatus() {
   const { data, isError } = useQuery({ queryKey: ["health"], queryFn: () => getJson<Health>("/api/health") });
   const label = isError ? "server unreachable" : data ? `server ${data.version}` : "connecting";
   const tone = isError ? "text-bad" : data ? "text-ok" : "text-muted";
-  return <span className={`ml-auto font-mono text-xs ${tone}`}>{label}</span>;
+  return <span className={`font-mono text-xs ${tone}`}>{label}</span>;
 }

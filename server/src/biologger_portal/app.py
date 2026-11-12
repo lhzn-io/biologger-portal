@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse
 from . import __version__
 from .db import Catalog
 from .jobs import Jobs
-from .routes import catalog, health, tracks, uploads
+from .routes import catalog, health, sheets, tracks, uploads
 from .settings import Settings, get_settings
 
 API_PREFIXES = ("api/", "tracks/", "bathy/")
@@ -42,6 +42,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(catalog.router, prefix="/api")
     app.include_router(tracks.router)
     app.include_router(uploads.router)
+    app.include_router(sheets.router)
 
     dist = settings.web_dist
     if dist is not None and (dist / "index.html").is_file():
