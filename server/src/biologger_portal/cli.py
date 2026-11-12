@@ -1,11 +1,19 @@
 # Copyright (c) 2026 Long Horizon Observatory
 # Licensed under the Apache License, Version 2.0. See LICENSE file for details.
 
-"""Command line: ``biologger-portal serve``."""
+"""Command line: ``biologger-portal serve | import | scan | validate``."""
 
 import argparse
+import getpass
+import json
+from dataclasses import asdict
 
 import uvicorn
+
+from .db import Catalog
+from .importers import import_all
+from .jobs import Jobs
+from .settings import get_settings
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -16,6 +24,12 @@ def main(argv: list[str] | None = None) -> None:
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8797)
     serve.add_argument("--reload", action="store_true", help="Reload on source changes (development)")
+    sub.add_parser("import", help="Import the metadata sheets and the prototype registries, then scan")
+    scan_p = sub.add_parser("scan", help="Index the datasets folder")
+    scan_p.add_argument("--no-hash", action="store_true", help="Skip SHA-256 of new or changed files")
+    val = sub.add_parser("validate", help="Validate one cataloged file and print the result")
+    val.add_argument("path", help="Path relative to the datasets root")
+    val.add_argument("--mode", choices=["light", "deep"], default="light")
     args = parser.parse_args(argv)
 
     if args.command == "serve":
@@ -27,6 +41,30 @@ def main(argv: list[str] | None = None) -> None:
             reload=args.reload,
             proxy_headers=True,
         )
+        return
+
+    settings = get_settings()
+    catalog = Catalog(settings.portal_dir / "catalog.db")
+    jobs = Jobs(catalog, settings.datasets_root)
+    actor = f"cli:{getpass.getuser()}"
+    try:
+        if args.command == "import":
+            report = import_all(catalog, settings.datasets_root, actor=actor)
+            print(json.dumps(asdict(report), indent=2))
+            print(json.dumps(jobs.run_scan_now(hash_files=True), indent=2, default=str))
+        elif args.command == "scan":
+            print(json.dumps(jobs.run_scan_now(hash_files=not args.no_hash), indent=2, default=str))
+        elif args.command == "validate":
+            row = catalog.one("SELECT id FROM file WHERE path=?", (args.path,))
+            if row is None:
+                raise SystemExit(f"not in the catalog (run a scan first): {args.path}")
+            run_id = jobs.request_validation(row["id"], args.mode, actor, background=False)
+            run = catalog.one("SELECT * FROM validation_run WHERE id=?", (run_id,))
+            assert run is not None
+            print(json.dumps({**run, "results": json.loads(run["results"])}, indent=2))
+    finally:
+        jobs.shutdown()
+        catalog.close()
 
 
 if __name__ == "__main__":

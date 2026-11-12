@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     access_aud: str = ""
     # Emails allowed to edit metadata and register files; everyone admitted by Access can read.
     editors: list[str] = []
+    # Local development only: act as this user (with edit rights) when Access is not configured.
+    dev_user: str = ""
+    # Largest upload part the server accepts; Cloudflare caps proxied request bodies at 100 MB.
+    upload_part_bytes: int = 64 * 1024 * 1024
 
     @property
     def portal_dir(self) -> Path:
