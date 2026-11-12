@@ -12,22 +12,23 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@lhzn-io/collect": "file:vendor/lhzn-io-collect-0.1.0.tgz",
     "@lhzn-io/timecharts": "file:vendor/lhzn-io-timecharts-0.2.0.tgz",
     "@tanstack/react-query": "^5.62.0",
     "camera-controls": "3.1.2",
     "maplibre-gl": "^5.24.0",
-    "three": "0.170.0",
     "react": "19.2.6",
     "react-dom": "19.2.6",
-    "react-router": "^7.1.0"
+    "react-router": "^7.1.0",
+    "three": "0.170.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
     "@tailwindcss/vite": "^4.1.0",
     "@testing-library/react": "^16.1.0",
+    "@types/geojson": "^7946.0.16",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
-    "@types/geojson": "^7946.0.16",
     "@types/react-dom": "^19.2.3",
     "@types/three": "0.170.0",
     "@vitejs/plugin-react": "^5.1.1",

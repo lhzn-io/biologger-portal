@@ -1,5 +1,7 @@
 import { Link } from "react-router";
-import { ErrorNote, Loading, Panel } from "../components/ui";
+import { ErrorNote, Loading } from "../components/ui";
+import CollectPanel from "../collect/CollectPanel";
+import { matrixText } from "../collect/texts";
 import { bytes, KIND_LABELS } from "../lib/format";
 import { useMatrix } from "../lib/queries";
 import type { MatrixCell } from "../lib/types";
@@ -25,7 +27,7 @@ export default function Matrix() {
   if (isLoading) return <Loading what="the file grid" />;
   if (error || !data) return <ErrorNote error={error} />;
   return (
-    <Panel title="Files by deployment">
+    <CollectPanel id="matrix" title="Files by deployment" text={() => matrixText(data)}>
       <p className="mb-3 text-xs text-muted">
         Count and size of files on the server per kind. "Drive" marks a product that is not on the server
         while the deployment lists a Google Drive folder, where it may be; the portal does not check Drive.
@@ -61,6 +63,6 @@ export default function Matrix() {
           </tbody>
         </table>
       </div>
-    </Panel>
+    </CollectPanel>
   );
 }

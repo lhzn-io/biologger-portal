@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Button, ErrorNote, Loading, Panel } from "../components/ui";
+import CollectPanel from "../collect/CollectPanel";
+import { mapText, readoutText } from "../collect/texts";
 import Charts from "../viewer/Charts";
 import { loadDem } from "../viewer/dem";
 import Map2D from "../viewer/Map2D";
@@ -48,6 +50,7 @@ export default function TrackPage() {
   if (track.isLoading) return <Loading what="the track" />;
   if (track.error || !tr) return <ErrorNote error={track.error} />;
   const r = readoutAt(tr, dem.data ?? null, cursor);
+  const key = `track:${depId}:${runId}`;
   const m = tr.manifest;
 
   return (
@@ -64,8 +67,8 @@ export default function TrackPage() {
         </span>
       </header>
 
-      <Panel>
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-1 font-mono text-xs md:grid-cols-5" data-collect-target="readout">
+      <CollectPanel id={`${key}:readout`} title={`Cursor readout, ${depId}`} text={() => readoutText(tr, dem.data ?? null, cursor)}>
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-1 font-mono text-xs md:grid-cols-5">
           <Item label="Time (UTC)" value={r.time_utc} />
           <Item label="Position" value={`${fmt(r.lat, 5)}, ${fmt(r.lon, 5)}`} />
           <Item label="Depth" value={`${fmt(r.depth_m)} m`} />
@@ -103,23 +106,23 @@ export default function TrackPage() {
             </span>
           )}
         </div>
-      </Panel>
+      </CollectPanel>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <Panel title="Plan view">
+        <CollectPanel id={`${key}:map`} title={`Plan view, ${depId}`} text={() => mapText(tr, dem.data ?? null)}>
           <div className="h-[28rem]">
             <Map2D track={tr} dem={dem.data ?? null} cursor={cursor} onPick={onCursor} />
           </div>
-        </Panel>
-        <Panel title="3D view">
-          <div className="h-[28rem]" data-collect-target="scene">
+        </CollectPanel>
+        <CollectPanel id={`${key}:scene`} title={`3D view, ${depId}`} text={() => mapText(tr, dem.data ?? null, exag)}>
+          <div className="h-[28rem]">
             <Scene3D track={tr} dem={dem.data ?? null} cursor={cursor} exaggeration={exag} />
           </div>
-        </Panel>
+        </CollectPanel>
       </div>
 
       <Panel title="Along the track">
-        <Charts track={tr} dem={dem.data ?? null} cursor={cursor} onCursor={onCursor} />
+        <Charts track={tr} dem={dem.data ?? null} cursor={cursor} onCursor={onCursor} collectKey={key} />
       </Panel>
       <p className="text-xs text-muted">
         Positions between the start and end fixes are reconstructed by dead reckoning ({m.track_model_used}), not

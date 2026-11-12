@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import { NavLink, Route, Routes } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { getJson, type Health } from "./lib/api";
+import { CollectControls, useCollectTray } from "./collect/collect";
 import { useMe } from "./lib/queries";
 import DeploymentPage from "./routes/DeploymentPage";
 import Deployments from "./routes/Deployments";
@@ -21,6 +22,7 @@ const NAV = [
 ];
 
 export default function App() {
+  useCollectTray();
   return (
     <div className="flex min-h-screen flex-col">
       <header className="flex items-center gap-6 border-b border-line bg-panel px-4 py-3">
@@ -38,6 +40,7 @@ export default function App() {
           ))}
         </nav>
         <span className="ml-auto flex items-center gap-4">
+          <CollectControls />
           <WhoAmI />
           <ServerStatus />
         </span>

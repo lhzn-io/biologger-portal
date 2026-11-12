@@ -2,7 +2,10 @@ import { useEffect, useMemo, useRef } from "react";
 import { markAsOf, renderLines, type Line } from "@lhzn-io/timecharts/chart";
 import { timeTrack } from "@lhzn-io/timecharts/time-axis";
 import "@lhzn-io/timecharts/tokens.css";
-import "./charts.css";
+import "@lhzn-io/timecharts/charts.css";
+import "./charts-local.css";
+import { CollectButton, useCollectItem } from "../collect/collect";
+import { chartText } from "../collect/texts";
 import { elevationAt, type Dem } from "./dem";
 import { indexAt, strideIndices, timeOf, type Track } from "./track";
 
@@ -41,8 +44,23 @@ export function chartSeries(track: Track, dem: Dem | null): ChartSeries[] {
   ];
 }
 
-function Chart({ series, onTime }: { series: ChartSeries; onTime: (t: number) => void }) {
+function Chart({
+  series,
+  onTime,
+  collectId,
+  text,
+  deploymentId,
+}: {
+  series: ChartSeries;
+  deploymentId: string;
+  onTime: (t: number) => void;
+  collectId: string;
+  text: () => string;
+}) {
   const plot = useRef<HTMLDivElement>(null);
+  const fig = useRef<HTMLElement>(null);
+  const itemTitle = `${series.title}, ${deploymentId}`;
+  useCollectItem(collectId, itemTitle, text, fig);
   useEffect(() => {
     const el = plot.current;
     if (!el) return;
@@ -59,8 +77,9 @@ function Chart({ series, onTime }: { series: ChartSeries; onTime: (t: number) =>
     };
   }, [series, onTime]);
   return (
-    <figure data-collect-target={`chart-${series.id}`}>
-      <figcaption className="mb-1 text-xs text-muted">
+    <figure ref={fig} data-collect-item>
+      <figcaption className="mb-1 flex items-center text-xs text-muted">
+        <CollectButton id={collectId} title={itemTitle} kind="chart" />
         {series.title}
         <span className="ml-3">
           {series.lines.map((l) => (
@@ -85,11 +104,13 @@ export default function Charts({
   dem,
   cursor,
   onCursor,
+  collectKey,
 }: {
   track: Track;
   dem: Dem | null;
   cursor: number;
   onCursor: (index: number) => void;
+  collectKey: string;
 }) {
   const series = useMemo(() => chartSeries(track, dem), [track, dem]);
   const slot = useRef<HTMLDivElement>(null);
@@ -125,7 +146,14 @@ export default function Charts({
     <div className="space-y-3">
       <div ref={slot} />
       {series.map((s) => (
-        <Chart key={s.id} series={s} onTime={onTime} />
+        <Chart
+          key={s.id}
+          series={s}
+          onTime={onTime}
+          collectId={`${collectKey}:chart-${s.id}`}
+          deploymentId={track.manifest.deployment_id}
+          text={() => chartText(s, track, cursor)}
+        />
       ))}
     </div>
   );

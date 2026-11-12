@@ -1,0 +1,3 @@
+/* The portal's sizes for @lhzn-io/timecharts' charts (the package's charts.css holds the layout). */
+.plot { height: 150px; }
+.plot svg { cursor: crosshair; }

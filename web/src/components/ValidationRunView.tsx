@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { CollectButton, useCollectItem } from "../collect/collect";
+import { validationText } from "../collect/texts";
 import { Badge } from "./ui";
 import type { ValidationRun } from "../lib/types";
 
@@ -19,11 +21,17 @@ const FACT_LABELS: Record<string, string> = {
 
 export default function ValidationRunView({ run }: { run: ValidationRun }) {
   const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  const id = `run:${run.id}`;
+  const title = `${run.mode} validation of ${run.file_path || "a file"}`;
+  useCollectItem(id, title, () => validationText(run), box);
   const facts = run.results.facts ?? {};
   const channels = (facts.channels ?? {}) as Record<string, { fill_fraction: number; rate_hz: number | null; violations: number }>;
   const window = facts.deployment_window as { pre_release_s: number; post_recovery_s: number } | undefined;
   return (
-    <div className="border-t border-line py-2 text-sm">
+    <div ref={box} data-collect-item className="border-t border-line py-2 text-sm">
+      <div className="flex items-center">
+      <CollectButton id={id} title={title} kind="validation run" />
       <button type="button" className="flex w-full items-center gap-3 text-left" onClick={() => setOpen((o) => !o)}>
         <Badge tone={run.status}>{run.status}</Badge>
         <span className="font-mono text-xs text-muted">{run.mode}</span>
@@ -33,6 +41,7 @@ export default function ValidationRunView({ run }: { run: ValidationRun }) {
           {run.unverified && " (prototype record, unverified)"}
         </span>
       </button>
+      </div>
       {open && (
         <div className="mt-2 space-y-3 pl-2">
           <p className="text-muted">{run.summary}</p>

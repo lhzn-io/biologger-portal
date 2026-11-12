@@ -3,6 +3,8 @@ import { Link, useParams } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge, Button, ErrorNote, Loading, Panel } from "../components/ui";
 import ValidationRunView from "../components/ValidationRunView";
+import CollectPanel from "../collect/CollectPanel";
+import { deploymentText, filesText } from "../collect/texts";
 import { sendJson } from "../lib/api";
 import { bytes, coord, duration, KIND_LABELS, utc } from "../lib/format";
 import { useDeployment, useMe } from "../lib/queries";
@@ -132,7 +134,7 @@ function Files({ data, editor }: { data: DeploymentDetail; editor: boolean }) {
   });
   const files = data.files.filter((f) => !f.missing);
   return (
-    <Panel title={`Files (${files.length})`}>
+    <CollectPanel id={`dep:${data.id}:files`} title={`Files, ${data.id}`} text={() => filesText(data)}>
       <table className="w-full text-sm">
         <thead className="text-left text-muted">
           <tr>
@@ -170,7 +172,7 @@ function Files({ data, editor }: { data: DeploymentDetail; editor: boolean }) {
       </table>
       {validate.error && <ErrorNote error={validate.error} />}
       {validate.isSuccess && <p className="mt-2 text-xs text-muted">Run queued; results appear under Validation runs.</p>}
-    </Panel>
+    </CollectPanel>
   );
 }
 
@@ -186,8 +188,10 @@ function Metadata({ data, editor }: { data: DeploymentDetail; editor: boolean })
   });
   const changed = draft ? Object.fromEntries(Object.entries(draft).filter(([k, v]) => v !== (data.fields[k] ?? ""))) : {};
   return (
-    <Panel
-      title="Metadata"
+    <CollectPanel
+      id={`dep:${data.id}:metadata`}
+      title={`Metadata, ${data.id}`}
+      text={() => deploymentText(data)}
       actions={
         editor &&
         (draft ? (
@@ -234,7 +238,7 @@ function Metadata({ data, editor }: { data: DeploymentDetail; editor: boolean })
       </div>
       <p className="mt-3 text-xs text-muted">Source: {data.source}. Updated {data.updated_utc}.</p>
       {save.error && <ErrorNote error={save.error} />}
-    </Panel>
+    </CollectPanel>
   );
 }
 
