@@ -9,10 +9,17 @@ const SERVER = "http://127.0.0.1:8797";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  build: {
+    // three.js and MapLibre load only with the track viewer; separate chunks let browsers cache them.
+    chunkSizeWarningLimit: 1100,
+    rollupOptions: {
+      output: { manualChunks: { three: ["three", "camera-controls"], maplibre: ["maplibre-gl"] } },
+    },
+  },
   server: {
     host: "127.0.0.1",
     port: 5173,
-    proxy: { "/api": SERVER, "/bathy": SERVER, "/tracks": SERVER },
+    proxy: { "/api": SERVER, "/topobathy": SERVER, "/tracks": SERVER },
     // The prompt templates live outside web/ (configs/prompts/), imported with ?raw.
     fs: { allow: [".."] },
   },

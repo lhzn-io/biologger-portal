@@ -14,6 +14,7 @@ from .db import Catalog
 from .importers import import_all
 from .jobs import Jobs
 from .settings import get_settings
+from .topobathy import TopobathyProxy
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -46,6 +47,9 @@ def main(argv: list[str] | None = None) -> None:
     settings = get_settings()
     catalog = Catalog(settings.portal_dir / "catalog.db")
     jobs = Jobs(catalog, settings.datasets_root)
+    topobathy = TopobathyProxy(settings.topobathykit_url, settings.portal_dir / "topobathy-cache")
+    if settings.topobathy_prefetch:
+        jobs.attach_topobathy(topobathy, settings.topobathy_max_dim)
     actor = f"cli:{getpass.getuser()}"
     try:
         if args.command == "import":
@@ -64,6 +68,7 @@ def main(argv: list[str] | None = None) -> None:
             print(json.dumps({**run, "results": json.loads(run["results"])}, indent=2))
     finally:
         jobs.shutdown()
+        topobathy.close()
         catalog.close()
 
 

@@ -7,25 +7,30 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 
 from . import __version__
 from .db import Catalog
 from .jobs import Jobs
-from .routes import catalog, health, sheets, tracks, uploads
+from .routes import catalog, health, sheets, topobathy, tracks, uploads
 from .settings import Settings, get_settings
+from .topobathy import TopobathyProxy
 
-API_PREFIXES = ("api/", "tracks/", "bathy/")
+API_PREFIXES = ("api/", "tracks/", "topobathy/")
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None, topobathy_transport: httpx.BaseTransport | None = None
+) -> FastAPI:
     settings = settings or get_settings()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         yield
         app.state.jobs.shutdown()
+        app.state.topobathy.close()
         app.state.catalog.close()
 
     app = FastAPI(
@@ -37,8 +42,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.settings = settings
     app.state.catalog = Catalog(settings.portal_dir / "catalog.db")
+    app.state.topobathy = TopobathyProxy(
+        settings.topobathykit_url, settings.portal_dir / "topobathy-cache", transport=topobathy_transport
+    )
     app.state.jobs = Jobs(app.state.catalog, settings.datasets_root)
+    if settings.topobathy_prefetch:
+        app.state.jobs.attach_topobathy(app.state.topobathy, settings.topobathy_max_dim)
     app.include_router(health.router, prefix="/api")
+    app.include_router(topobathy.router)
     app.include_router(catalog.router, prefix="/api")
     app.include_router(tracks.router)
     app.include_router(uploads.router)

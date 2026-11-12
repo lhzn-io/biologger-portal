@@ -18,6 +18,7 @@ from typing import Any
 
 from .db import Catalog, dumps, utcnow
 from .scanner import scan
+from .topobathy import TopobathyError, TopobathyProxy, prefetch_tracks
 from .validation import TOOL_VERSION
 from .validation.checks import ValidationError, deep, light
 
@@ -31,12 +32,17 @@ class Jobs:
         self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="portal-job")
         self._lock = threading.Lock()
         self.scan_state: dict[str, Any] = {"status": "idle"}
+        self._topobathy: tuple[TopobathyProxy, int] | None = None
         with catalog.tx() as conn:
             conn.execute(
                 """UPDATE validation_run SET status='error', summary='interrupted by a server restart',
                    finished_utc=? WHERE status IN ('queued', 'running')""",
                 (utcnow(),),
             )
+
+    def attach_topobathy(self, proxy: TopobathyProxy, max_dim: int) -> None:
+        """After each scan, fetch the terrain of tracks whose crop is not cached yet."""
+        self._topobathy = (proxy, max_dim)
 
     def shutdown(self) -> None:
         self._pool.shutdown(wait=False, cancel_futures=True)
@@ -123,6 +129,12 @@ class Jobs:
                 "finished_utc": utcnow(),
                 **asdict(report),
             }
+            if self._topobathy is not None:
+                proxy, max_dim = self._topobathy
+                try:
+                    self.scan_state["terrain_ready"] = prefetch_tracks(self.catalog, proxy, max_dim)
+                except TopobathyError as exc:  # the catalog is fine; the viewer fetches on first view
+                    self.scan_state["terrain_error"] = exc.detail
         except Exception as exc:
             log.exception("scan failed")
             self.scan_state = {

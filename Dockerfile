@@ -9,6 +9,7 @@
 FROM node:24-alpine AS web
 WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./
+COPY web/vendor/ ./vendor/
 RUN npm ci
 COPY web/ ./
 COPY configs/ /src/configs/

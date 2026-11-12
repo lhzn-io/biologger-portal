@@ -41,3 +41,6 @@ export const KIND_LABELS: Record<string, string> = {
   doc: "Doc",
   other: "Other",
 };
+
+/** Track colours on the overview map, in the order of /api/tracks (the list under the map uses the same). */
+export const TRACK_COLORS = ["#fbbf24", "#3b9cff", "#34d399", "#f472b6", "#a78bfa", "#f87171", "#22d3ee"];

@@ -1,12 +1,25 @@
+import { lazy, Suspense } from "react";
 import { Link } from "react-router";
+import { useQuery } from "@tanstack/react-query";
 import { ErrorNote, Loading, Panel } from "../components/ui";
-import { bytes } from "../lib/format";
+import { bytes, TRACK_COLORS } from "../lib/format";
 import { useDeployments, useTracks } from "../lib/queries";
+import { loadDemFrom } from "../viewer/dem";
 
-/** Landing page: catalog totals and the tracks; the all-deployments map arrives with the viewer (D3). */
+const OverviewMap = lazy(() => import("../viewer/OverviewMap"));
+
+/** Landing page: catalog totals, every track on one map, and the list of tracks. */
 export default function Overview() {
   const deps = useDeployments();
   const tracks = useTracks();
+  const hasTracks = (tracks.data ?? []).length > 0;
+  const dem = useQuery({
+    queryKey: ["dem", "overview"],
+    queryFn: () => loadDemFrom("/api/terrain/overview"),
+    enabled: hasTracks,
+    staleTime: Infinity,
+    retry: 0,
+  });
   if (deps.isLoading) return <Loading what="the catalog" />;
   if (deps.error) return <ErrorNote error={deps.error} />;
   const list = deps.data ?? [];
@@ -28,13 +41,26 @@ export default function Overview() {
           </Panel>
         ))}
       </div>
+      {hasTracks && (
+        <Panel title="All tracks">
+          {dem.isLoading ? (
+            <p className="text-sm text-muted">Fetching topobathymetry (the first view can take up to a minute)...</p>
+          ) : (
+            <Suspense fallback={<p className="text-sm text-muted">Loading the map...</p>}>
+              <OverviewMap tracks={tracks.data!} dem={dem.data ?? null} />
+            </Suspense>
+          )}
+          {dem.error && <p className="mt-2 text-xs text-muted">Shown without relief: {dem.error.message}</p>}
+        </Panel>
+      )}
       <Panel title="Reconstructed tracks">
         {(tracks.data ?? []).length === 0 ? (
           <p className="text-sm text-muted">No track bundles yet.</p>
         ) : (
           <ul className="space-y-1 text-sm">
-            {tracks.data!.map((t) => (
+            {tracks.data!.map((t, k) => (
               <li key={t.id}>
+                <i className="mr-2 inline-block h-1 w-4 align-middle" style={{ background: TRACK_COLORS[k % TRACK_COLORS.length] }} />
                 <Link className="font-mono text-accent hover:underline" to={`/deployments/${encodeURIComponent(t.deployment_id)}/track/${encodeURIComponent(t.run_id)}`}>
                   {t.deployment_id}
                 </Link>{" "}

@@ -218,7 +218,12 @@ def datasets(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def settings(datasets: Path) -> Settings:
-    return Settings(datasets_root=datasets, dev_user="tester@example.org", upload_part_bytes=1024)
+    return Settings(
+        datasets_root=datasets,
+        dev_user="tester@example.org",
+        upload_part_bytes=1024,
+        topobathy_prefetch=False,
+    )
 
 
 @pytest.fixture

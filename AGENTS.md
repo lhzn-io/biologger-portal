@@ -34,6 +34,6 @@ Repository context and rules for AI developer agents. The design and phase plan 
 - No embedded chatbot and no model or gateway dependency. "Ask your AI" builds a prompt and an image from what the user collected; the prompt is built from the same values the page renders, and the image is never the source of a number.
 - Prompt templates are files in `configs/prompts/`, imported with Vite's `?raw`.
 
-## Bathymetry
+## Topobathymetry
 
-- topobathykit (`garnet.internal:9595`) has one worker and no CORS. Reach it only through the server's `/bathy/*` proxy, only for pre-fused datasets and hydrated tiles, and never with `nocache`.
+- topobathykit (`garnet.internal:9595`) has one worker and no CORS. Reach it only through the server's `/topobathy/*` proxy, which caches DEM crops (`meta` and `elevation.bin` with `bbox`, 14 to 28 s each when uncached) on disk and sends one request at a time with timeouts. The viewer requests no map tiles: an uncached tile makes topobathykit fuse it on its single worker.

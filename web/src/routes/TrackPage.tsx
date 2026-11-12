@@ -1,0 +1,139 @@
+import { useCallback, useEffect, useState } from "react";
+import { Link, useParams } from "react-router";
+import { useQuery } from "@tanstack/react-query";
+import { Button, ErrorNote, Loading, Panel } from "../components/ui";
+import Charts from "../viewer/Charts";
+import { loadDem } from "../viewer/dem";
+import Map2D from "../viewer/Map2D";
+import { fmt, readoutAt } from "../viewer/readout";
+import Scene3D from "../viewer/Scene3D";
+import { loadTrack } from "../viewer/track";
+
+const SPEEDS = [60, 600, 3600]; // seconds of track per second of playback
+
+export default function TrackPage() {
+  const params = useParams();
+  const depId = decodeURIComponent(params.id ?? "");
+  const runId = decodeURIComponent(params.run ?? "");
+  const track = useQuery({ queryKey: ["track", depId, runId], queryFn: () => loadTrack(depId, runId), staleTime: Infinity });
+  // The DEM crop can take up to a minute the first time topobathykit builds it; the track shows meanwhile.
+  const dem = useQuery({ queryKey: ["dem", depId, runId], queryFn: () => loadDem(depId, runId), staleTime: Infinity, retry: 1 });
+  const [cursor, setCursor] = useState(0);
+  const [exag, setExag] = useState(5);
+  const [speed, setSpeed] = useState<number | null>(null);
+  const onCursor = useCallback((i: number) => setCursor(i), []);
+
+  const tr = track.data;
+  useEffect(() => {
+    if (!tr || speed == null) return;
+    let last = performance.now();
+    let frame = 0;
+    const step = (now: number) => {
+      const dt = (now - last) / 1000;
+      last = now;
+      setCursor((c) => {
+        const next = c + Math.max(1, Math.round(dt * speed * tr.manifest.rate_hz));
+        if (next >= tr.count - 1) {
+          setSpeed(null);
+          return tr.count - 1;
+        }
+        return next;
+      });
+      frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [tr, speed]);
+
+  if (track.isLoading) return <Loading what="the track" />;
+  if (track.error || !tr) return <ErrorNote error={track.error} />;
+  const r = readoutAt(tr, dem.data ?? null, cursor);
+  const m = tr.manifest;
+
+  return (
+    <div className="space-y-4">
+      <header className="flex flex-wrap items-baseline gap-x-4">
+        <h1 className="font-mono text-xl">
+          <Link to={`/deployments/${encodeURIComponent(depId)}`} className="text-accent hover:underline">
+            {depId}
+          </Link>
+        </h1>
+        <span className="text-sm text-muted">
+          {m.track_model_used} track, {m.count.toLocaleString()} samples at {m.rate_hz} Hz, run {m.run_id}
+          {m.provenance.sim_git_dirty ? " (exported from a simulator checkout with uncommitted changes)" : ""}
+        </span>
+      </header>
+
+      <Panel>
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-1 font-mono text-xs md:grid-cols-5" data-collect-target="readout">
+          <Item label="Time (UTC)" value={r.time_utc} />
+          <Item label="Position" value={`${fmt(r.lat, 5)}, ${fmt(r.lon, 5)}`} />
+          <Item label="Depth" value={`${fmt(r.depth_m)} m`} />
+          <Item label="Seafloor (DEM)" value={r.seafloor_depth_m == null ? "--" : `${fmt(r.seafloor_depth_m)} m`} />
+          <Item label="Above seafloor" value={r.above_seafloor_m == null ? "--" : `${fmt(r.above_seafloor_m)} m`} />
+          <Item label="Heading" value={`${fmt(r.heading_deg)} deg`} />
+          <Item label="Pitch" value={`${fmt(r.pitch_deg)} deg`} />
+          <Item label="Roll" value={`${fmt(r.roll_deg)} deg`} />
+          <Item label={`VeDBA (${tr.units.vedba || "m/s^2"})`} value={fmt(r.vedba, 3)} />
+          <Item label="From start fix" value={`${fmt(r.north_m / 1000, 2)} km N, ${fmt(r.east_m / 1000, 2)} km E`} />
+        </dl>
+        <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+          <Button kind="plain" onClick={() => setSpeed(speed == null ? SPEEDS[0]! : null)}>
+            {speed == null ? "Play" : "Pause"}
+          </Button>
+          <label className="flex items-center gap-1 text-muted">
+            Speed
+            <select className="rounded border border-line bg-surface px-1" value={speed ?? SPEEDS[0]} onChange={(e) => setSpeed(Number(e.target.value))}>
+              {SPEEDS.map((s) => (
+                <option key={s} value={s}>
+                  {s}x
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-muted">
+            Vertical exaggeration {exag}x
+            <input type="range" min={1} max={20} value={exag} onChange={(e) => setExag(Number(e.target.value))} />
+          </label>
+          {dem.isLoading && <span className="text-xs text-muted">Fetching topobathymetry (the first view of a track can take up to a minute)...</span>}
+          {dem.error && <span className="text-xs text-bad">No terrain: {dem.error.message}</span>}
+          {dem.data && (
+            <span className="text-xs text-muted">
+              Terrain: {dem.data.terrain.dataset}, {dem.data.meta.width} x {dem.data.meta.height} cells
+            </span>
+          )}
+        </div>
+      </Panel>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Panel title="Plan view">
+          <div className="h-[28rem]">
+            <Map2D track={tr} dem={dem.data ?? null} cursor={cursor} onPick={onCursor} />
+          </div>
+        </Panel>
+        <Panel title="3D view">
+          <div className="h-[28rem]" data-collect-target="scene">
+            <Scene3D track={tr} dem={dem.data ?? null} cursor={cursor} exaggeration={exag} />
+          </div>
+        </Panel>
+      </div>
+
+      <Panel title="Along the track">
+        <Charts track={tr} dem={dem.data ?? null} cursor={cursor} onCursor={onCursor} />
+      </Panel>
+      <p className="text-xs text-muted">
+        Positions between the start and end fixes are reconstructed by dead reckoning ({m.track_model_used}), not
+        observed. Seafloor depths are read from the fused DEM at the reconstructed position.
+      </p>
+    </div>
+  );
+}
+
+function Item({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-muted">{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  );
+}

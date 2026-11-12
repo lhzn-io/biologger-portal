@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     dev_user: str = ""
     # Largest upload part the server accepts; Cloudflare caps proxied request bodies at 100 MB.
     upload_part_bytes: int = 64 * 1024 * 1024
+    # Grid size of a track's terrain crop (the longer side, in cells); 1024 is 4 MB of Float32.
+    topobathy_max_dim: int = 1024
+    # Fetch every track's terrain after a scan, so the first view does not wait 30 to 60 s.
+    topobathy_prefetch: bool = True
 
     @property
     def portal_dir(self) -> Path:

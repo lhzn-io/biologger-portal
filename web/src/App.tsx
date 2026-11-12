@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { NavLink, Route, Routes } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { getJson, type Health } from "./lib/api";
@@ -8,6 +9,9 @@ import Matrix from "./routes/Matrix";
 import Overview from "./routes/Overview";
 import Placeholder from "./routes/Placeholder";
 import Register from "./routes/Register";
+
+// The viewer pulls in three.js and MapLibre; load it only when a track is opened.
+const TrackPage = lazy(() => import("./routes/TrackPage"));
 
 const NAV = [
   { to: "/", label: "Overview" },
@@ -45,7 +49,11 @@ export default function App() {
           <Route path="/deployments/:id" element={<DeploymentPage />} />
           <Route
             path="/deployments/:id/track/:run"
-            element={<Placeholder title="Track viewer" note="2D map and 3D view (Phase D3)." />}
+            element={
+              <Suspense fallback={<p className="text-sm text-muted">Loading the viewer...</p>}>
+                <TrackPage />
+              </Suspense>
+            }
           />
           <Route path="/matrix" element={<Matrix />} />
           <Route path="/register" element={<Register />} />
