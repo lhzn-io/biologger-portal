@@ -7,9 +7,11 @@ import argparse
 import getpass
 import json
 from dataclasses import asdict
+from pathlib import Path
 
 import uvicorn
 
+from . import layout
 from .db import Catalog
 from .importers import import_all
 from .jobs import Jobs
@@ -31,6 +33,11 @@ def main(argv: list[str] | None = None) -> None:
     val = sub.add_parser("validate", help="Validate one cataloged file and print the result")
     val.add_argument("path", help="Path relative to the datasets root")
     val.add_argument("--mode", choices=["light", "deep"], default="light")
+    lay = sub.add_parser("layout", help="Move files into per-deployment folders (plan first, then apply)")
+    lay.add_argument("action", choices=["plan", "apply", "revert"])
+    lay.add_argument(
+        "file", nargs="?", help="apply: the plan (default .portal/layout-plan.json); revert: a moves record"
+    )
     args = parser.parse_args(argv)
 
     if args.command == "serve":
@@ -66,6 +73,22 @@ def main(argv: list[str] | None = None) -> None:
             run = catalog.one("SELECT * FROM validation_run WHERE id=?", (run_id,))
             assert run is not None
             print(json.dumps({**run, "results": json.loads(run["results"])}, indent=2))
+        elif args.command == "layout":
+            root = settings.datasets_root
+            if args.action == "plan":
+                jobs.run_scan_now(hash_files=False)  # plan from the folder as it is now
+                path, p = layout.write_plan(catalog, root)
+                print(
+                    f"{len(p['moves'])} moves ({p['bytes'] / 1e9:.1f} GB renamed in place), "
+                    f"{len(p['unattributed'])} unattributed, {len(p['conflicts'])} conflicts; plan: {path}"
+                )
+            elif args.action == "apply":
+                plan_path = Path(args.file) if args.file else settings.portal_dir / "layout-plan.json"
+                print(f"applied; moves recorded in {layout.apply(catalog, root, plan_path)}")
+            else:
+                if not args.file:
+                    raise SystemExit("revert needs the moves record written by apply")
+                print(f"moved {layout.revert(catalog, root, Path(args.file))} files back")
     finally:
         jobs.shutdown()
         topobathy.close()

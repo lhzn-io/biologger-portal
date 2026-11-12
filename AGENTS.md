@@ -26,6 +26,7 @@ Repository context and rules for AI developer agents. The design and phase plan 
 ## Data
 
 - The canonical datasets folder is `garnet:/Users/lhzn/Projects/whoi-mpg/datasets`; the coriolis WSL copy is a pulled mirror. The portal keeps its own state in `datasets/.portal/` (SQLite catalog in `journal_mode=DELETE`, because WAL fails on macOS host-shared mounts).
+- Layout: `<deployment_id>/{standard,derived,raw,media,tracks}/`, sheets in `_metadata/`, the prototype's registries in `_metadata/prototype/`. Move files only with `biologger-portal layout plan`, review `.portal/layout-plan.json`, then `layout apply` (renames in place, recorded in `.portal/moves-*.json`, undone by `layout revert <record>`).
 - Never commit telemetry, CSV or Feather files.
 - Validation results come only from reading the files. Never synthesize a result when a file is missing or unreadable; fail the run with the reason.
 
