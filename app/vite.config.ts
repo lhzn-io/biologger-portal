@@ -825,7 +825,7 @@ function createValidationApiMiddleware() {
 
     if (pathname === '/api/history/sessions' && req.method === 'GET') {
       try {
-        const response = await fetch('http://localhost:42617/api/sessions');
+        const response = await fetch('http://127.0.0.1:42617/api/sessions');
         if (!response.ok) {
           const errText = await response.text();
           res.statusCode = response.status;
@@ -849,7 +849,7 @@ function createValidationApiMiddleware() {
       const sessionId = sessionMessagesMatch[1];
       if (req.method === 'GET') {
         try {
-          const response = await fetch(`http://localhost:42617/api/sessions/${sessionId}/messages`);
+          const response = await fetch(`http://127.0.0.1:42617/api/sessions/${sessionId}/messages`);
           if (!response.ok) {
             const errText = await response.text();
             res.statusCode = response.status;
@@ -870,7 +870,7 @@ function createValidationApiMiddleware() {
 
       if (req.method === 'DELETE') {
         try {
-          const response = await fetch(`http://localhost:42617/api/sessions/${sessionId}`, {
+          const response = await fetch(`http://127.0.0.1:42617/api/sessions/${sessionId}`, {
             method: 'DELETE'
           });
           if (!response.ok) {
@@ -913,7 +913,7 @@ function createValidationApiMiddleware() {
             const sessionId = req.headers['x-session-id'] || 'default-session';
 
             try {
-              const response = await fetch('http://localhost:42617/webhook', {
+              const response = await fetch('http://127.0.0.1:42617/webhook', {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',

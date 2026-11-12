@@ -14,11 +14,62 @@ interface AIAssistantSidebarProps {
   onClose: () => void;
   activeDataset: Dataset | undefined;
 }
-
 interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
+}
+
+function cleanMessage(content: string, defaultTime: string): { content: string; timestamp: string } {
+  let cleanContent = content || '';
+  let displayTime = defaultTime;
+
+  // 1. Convert literal \n to actual newlines and decode unicode escapes
+  cleanContent = cleanContent.replace(/\\n/g, '\n');
+  cleanContent = cleanContent.replace(/\\u([0-9a-fA-F]{4})/g, (_, grp) => 
+    String.fromCharCode(parseInt(grp, 16))
+  );
+
+  // 2. Strip prepended timestamp in brackets, e.g. [2026-06-19 16:52:31 +00:00]
+  const timestampRegex = /^\[(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:\s*[\+-]\d{2}:?\d{2}|Z)?)\]\s*/;
+  const match = cleanContent.match(timestampRegex);
+  if (match) {
+    const tsStr = match[1];
+    cleanContent = cleanContent.slice(match[0].length);
+    try {
+      const date = new Date(tsStr.replace(' ', 'T'));
+      if (!isNaN(date.getTime())) {
+        displayTime = date.toTimeString().split(' ')[0].substring(0, 5);
+      } else {
+        const timePart = tsStr.match(/\d{2}:\d{2}/);
+        if (timePart) displayTime = timePart[0];
+      }
+    } catch (e) {
+      const timePart = tsStr.match(/\d{2}:\d{2}/);
+      if (timePart) displayTime = timePart[0];
+    }
+  }
+
+  // 3. Strip leading JSON tool list arrays/prefix blocks like [{"type":"server"...}]$$
+  const toolPrefixRegex = /^\[\s*\{\s*"type"\s*:\s*"server"[\s\S]*?\}\s*\]\s*\$\$\s*/;
+  cleanContent = cleanContent.replace(toolPrefixRegex, '');
+
+  // Also support general prefix ending in $$ if present
+  const generalPrefixRegex = /^[\s\S]*?\$\$\s*/;
+  if (cleanContent.includes('$$') && cleanContent.indexOf('$$') < 500) {
+    cleanContent = cleanContent.replace(generalPrefixRegex, '');
+  }
+
+  // 4. Remove <available-tools>...</available-tools> and <tool_call>...</tool_call> completely
+  cleanContent = cleanContent.replace(/<(available-tools|tool_call)>[\s\S]*?<\/\1>/gi, '');
+
+  // 5. Strip all other XML/HTML tags but keep the content inside them
+  cleanContent = cleanContent.replace(/<\/?[a-zA-Z0-9_-]+(?:\s+[a-zA-Z0-9_-]+(?:=(?:"[^"]*"|'[^']*'|[^>\s]+))?)*\s*\/?>/gi, '');
+
+  return {
+    content: cleanContent.trim(),
+    timestamp: displayTime
+  };
 }
 
 export default function AIAssistantSidebar({ 
@@ -26,9 +77,7 @@ export default function AIAssistantSidebar({
   onClose, 
   activeDataset: _activeDataset
 }: AIAssistantSidebarProps) {
-  const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: 'Onboarded to WHOI Marine Predators Group expert assistant. Primary identity domain: lhzn.io authenticated. How can I assist your mesopelagic shark or swordfish tracking analysis today?', timestamp: '16:00' }
-  ])
+  const [messages, setMessages] = useState<Message[]>([])
   
   const [inputMessage, setInputMessage] = useState('')
   const [apiUrlMode, setApiUrlMode] = useState<'local' | 'tunnel'>('local')
@@ -74,9 +123,7 @@ export default function AIAssistantSidebar({
     const newId = 'session_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now().toString(36);
     setSelectedSessionId(newId);
     sessionIdRef.current = newId;
-    setMessages([
-      { role: 'assistant', content: 'Onboarded to WHOI Marine Predators Group expert assistant. Primary identity domain: lhzn.io authenticated. How can I assist your mesopelagic shark or swordfish tracking analysis today?', timestamp: new Date().toTimeString().split(' ')[0].substring(0, 5) }
-    ]);
+    setMessages([]);
   };
 
   const handleLoadSession = (sessionId: string) => {
@@ -91,16 +138,26 @@ export default function AIAssistantSidebar({
         setSelectedSessionId(sessionId);
         sessionIdRef.current = sessionId;
         
-        const loadedMessages = (data.messages || []).map((m: any) => ({
-          role: m.role === 'assistant' ? 'assistant' : 'user',
-          content: m.content || '',
-          timestamp: m.timestamp || new Date().toTimeString().split(' ')[0].substring(0, 5)
-        }));
+        const loadedMessages = (data.messages || []).map((m: any) => {
+          const defaultTime = m.timestamp || new Date().toTimeString().split(' ')[0].substring(0, 5);
+          if (m.role === 'assistant') {
+            const cleaned = cleanMessage(m.content || '', defaultTime);
+            return {
+              role: 'assistant',
+              content: cleaned.content,
+              timestamp: cleaned.timestamp
+            };
+          } else {
+            return {
+              role: 'user',
+              content: m.content || '',
+              timestamp: defaultTime
+            };
+          }
+        });
 
         if (loadedMessages.length === 0) {
-          setMessages([
-            { role: 'assistant', content: 'Onboarded to WHOI Marine Predators Group expert assistant. Primary identity domain: lhzn.io authenticated. How can I assist your mesopelagic shark or swordfish tracking analysis today?', timestamp: new Date().toTimeString().split(' ')[0].substring(0, 5) }
-          ]);
+          setMessages([]);
         } else {
           setMessages(loadedMessages);
         }
@@ -182,7 +239,8 @@ export default function AIAssistantSidebar({
         setIsTyping(false)
         const aiText = data.choices?.[0]?.message?.content || 'No response returned from model.'
         const responseTime = new Date().toTimeString().split(' ')[0].substring(0, 5)
-        const newAiMsg: Message = { role: 'assistant', content: aiText, timestamp: responseTime }
+        const cleaned = cleanMessage(aiText, responseTime)
+        const newAiMsg: Message = { role: 'assistant', content: cleaned.content, timestamp: cleaned.timestamp }
         setMessages(prev => [...prev, newAiMsg])
         fetchSessions()
       })
