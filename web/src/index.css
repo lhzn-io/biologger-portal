@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+/* Theme tokens. Dark by default (the prototype's palette); light follows the system unless the user picks one. */
+@theme {
+  --color-surface: #0b1220;
+  --color-panel: #111a2c;
+  --color-line: #1f2a40;
+  --color-ink: #e2e8f0;
+  --color-muted: #94a3b8;
+  --color-accent: #3b9cff;
+  --color-ok: #34d399;
+  --color-warn: #fbbf24;
+  --color-bad: #f87171;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --color-surface: #f8fafc;
+    --color-panel: #ffffff;
+    --color-line: #e2e8f0;
+    --color-ink: #0f172a;
+    --color-muted: #475569;
+    --color-accent: #004b87;
+  }
+}
+
+body {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: "Inter", system-ui, sans-serif;
+}
