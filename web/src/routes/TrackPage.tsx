@@ -74,7 +74,7 @@ export default function TrackPage() {
           <Item label="Depth" value={`${fmt(r.depth_m)} m`} />
           <Item label="Seafloor (DEM)" value={r.seafloor_depth_m == null ? "--" : `${fmt(r.seafloor_depth_m)} m`} />
           <Item label="Above seafloor" value={r.above_seafloor_m == null ? "--" : `${fmt(r.above_seafloor_m)} m`} />
-          <Item label="Heading" value={`${fmt(r.heading_deg)} deg`} />
+          <Item label={tr.headingSource === "tag" ? "Heading" : "Heading (fix bearing; no magnetometer)"} value={`${fmt(r.heading_deg)} deg`} />
           <Item label="Pitch" value={`${fmt(r.pitch_deg)} deg`} />
           <Item label="Roll" value={`${fmt(r.roll_deg)} deg`} />
           <Item label={`VeDBA (${tr.units.vedba || "m/s^2"})`} value={fmt(r.vedba, 3)} />

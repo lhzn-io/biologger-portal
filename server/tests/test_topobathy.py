@@ -82,6 +82,21 @@ def test_deployment_without_dem_has_no_terrain(settings: Settings, datasets: obj
     assert client.get("/api/tracks/WHOI.900_20250101/run-1/terrain").status_code == 404
 
 
+def test_browsers_revalidate_and_see_a_rebuilt_dem(settings: Settings) -> None:
+    fake = FakeTopobathykit()
+    client = make_client(settings, fake)
+    url = client.get("/api/tracks/WHOI.900_20250101/run-1/terrain").json()["meta_url"]
+    first = client.get(url)
+    assert first.headers["cache-control"] == "private, no-cache"
+    etag = first.headers["etag"]
+    assert client.get(url, headers={"If-None-Match": etag}).status_code == 304
+    # The DEM is rebuilt and the portal's cache cleared: the next request fetches again and the tag changes.
+    for f in (settings.portal_dir / "topobathy-cache").iterdir():
+        f.unlink()
+    again = client.get(url, headers={"If-None-Match": etag})
+    assert again.status_code == 200 and again.headers["etag"] != etag and len(fake.calls) == 2
+
+
 def test_overview_covers_every_track(settings: Settings) -> None:
     client = make_client(settings, FakeTopobathykit())
     overview = client.get("/api/terrain/overview").json()

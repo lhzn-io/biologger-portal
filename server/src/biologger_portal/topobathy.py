@@ -46,6 +46,9 @@ class TopobathyError(Exception):
 class Cached:
     body: bytes
     content_type: str
+    # Changes whenever the cached file is replaced (after a DEM rebuild and a cache clear), so browsers
+    # revalidate with If-None-Match instead of keeping stale terrain.
+    etag: str = ""
 
 
 def track_bbox(bounds: dict[str, Any]) -> tuple[float, float, float, float] | None:
@@ -134,12 +137,12 @@ class TopobathyProxy:
             tmp.write_bytes(res.content)
             tmp.replace(body_path)
             meta_path.write_text(json.dumps({"url": url, "content_type": content_type}))
-            return Cached(res.content, content_type)
+            return Cached(res.content, content_type, _etag(body_path))
 
     def _read(self, body_path: Path, meta_path: Path) -> Cached | None:
         if body_path.is_file() and meta_path.is_file():
             info = json.loads(meta_path.read_text())
-            return Cached(body_path.read_bytes(), info["content_type"])
+            return Cached(body_path.read_bytes(), info["content_type"], _etag(body_path))
         return None
 
     def _key_lock(self, key: str) -> threading.Lock:
@@ -168,6 +171,11 @@ def overview_area(catalog: Any) -> tuple[str, str, tuple[float, float, float, fl
         max(b[3] for b in boxes),
     )
     return dataset, policy, union
+
+
+def _etag(path: Path) -> str:
+    st = path.stat()
+    return f'"{path.stem[:16]}-{st.st_size:x}-{st.st_mtime_ns:x}"'
 
 
 def prefetch_tracks(catalog: Any, proxy: TopobathyProxy, max_dim: int) -> list[str]:

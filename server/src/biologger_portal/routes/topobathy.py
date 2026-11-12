@@ -76,6 +76,8 @@ def dem(
         cached = proxy.dem(dataset, product, bbox, max_dim)
     except TopobathyError as exc:
         raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
-    return Response(
-        cached.body, media_type=cached.content_type, headers={"Cache-Control": "private, max-age=86400"}
-    )
+    # Revalidate on every use: a rebuilt DEM must reach browsers, and an unchanged crop costs a 304.
+    headers = {"Cache-Control": "private, no-cache", "ETag": cached.etag}
+    if cached.etag and request.headers.get("if-none-match") == cached.etag:
+        return Response(status_code=304, headers=headers)
+    return Response(cached.body, media_type=cached.content_type, headers=headers)

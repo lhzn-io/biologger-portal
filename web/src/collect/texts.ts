@@ -94,7 +94,7 @@ export function readoutText(track: Track, dem: Dem | null, cursor: number): stri
     ["depth_m", fmt(r.depth_m)],
     ["seafloor_depth_m (DEM)", r.seafloor_depth_m == null ? "not covered by the DEM" : fmt(r.seafloor_depth_m)],
     ["above_seafloor_m", r.above_seafloor_m == null ? "" : fmt(r.above_seafloor_m)],
-    ["heading_deg", fmt(r.heading_deg)],
+    [track.headingSource === "tag" ? "heading_deg" : "heading_deg (no magnetometer: bearing from start fix to end fix)", fmt(r.heading_deg)],
     ["pitch_deg", fmt(r.pitch_deg)],
     ["roll_deg", fmt(r.roll_deg)],
     [`vedba (${track.units.vedba || "m/s^2"})`, fmt(r.vedba, 3)],

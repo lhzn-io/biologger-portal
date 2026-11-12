@@ -37,6 +37,19 @@ describe("track bundles", () => {
     expect(lon).toBeCloseTo(-45.8502, 6);
   });
 
+  it("points a track without magnetometer heading along the fix-to-fix bearing", () => {
+    const [m, buf] = bundle(4);
+    new Float32Array(buf).fill(NaN, 4 * 4, 5 * 4); // heading column all NaN
+    m.fixes = [
+      { kind: "start", t: 0, time_utc: "", lat: 35.53, lon: -45.69 },
+      { kind: "end", t: 3, time_utc: "", lat: 35.53, lon: -45.59 }, // due east
+    ];
+    const tr = parseTrack(m, buf);
+    expect(tr.headingSource).toBe("fix bearing");
+    expect(tr.heading[0]).toBeCloseTo(90, 3);
+    expect(parseTrack(bundle(4)[0], bundle(4)[1]).headingSource).toBe("tag");
+  });
+
   it("finds the nearest sample and strides", () => {
     const [m, buf] = bundle(100);
     const tr = parseTrack(m, buf);

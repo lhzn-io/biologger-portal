@@ -40,6 +40,16 @@ export interface Track {
   lat: Float64Array;
   lon: Float64Array;
   units: Record<string, string>;
+  /** "tag" when heading comes from the magnetometer; "fix bearing" when the tag has none and every heading is NaN,
+   * so the animal is pointed along the bearing from the start fix to the end fix (or north without an end fix). */
+  headingSource: "tag" | "fix bearing";
+}
+
+/** Bearing in degrees clockwise from north from one point to another (equirectangular, short distances). */
+export function bearingDeg(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const dn = lat2 - lat1;
+  const de = (lon2 - lon1) * Math.cos(((lat1 + lat2) / 2) * D2R);
+  return ((Math.atan2(de, dn) / D2R) + 360) % 360;
 }
 
 export function toLatLon(origin: { lat: number; lon: number }, north: number, east: number): [number, number] {
@@ -63,6 +73,14 @@ export function parseTrack(manifest: TrackManifest, buffer: ArrayBuffer): Track 
   for (let i = 0; i < n; i++) {
     [lat[i], lon[i]] = toLatLon(manifest.origin, north[i]!, east[i]!);
   }
+  let heading = col("heading_deg");
+  let headingSource: Track["headingSource"] = "tag";
+  if (!heading.some(Number.isFinite)) {
+    const start = manifest.fixes.find((f) => f.kind === "start");
+    const end = manifest.fixes.find((f) => f.kind === "end");
+    heading = new Float32Array(n).fill(start && end ? bearingDeg(start.lat, start.lon, end.lat, end.lon) : 0);
+    headingSource = "fix bearing";
+  }
   return {
     manifest,
     count: n,
@@ -70,7 +88,8 @@ export function parseTrack(manifest: TrackManifest, buffer: ArrayBuffer): Track 
     north,
     east,
     depth: col("depth_m"),
-    heading: col("heading_deg"),
+    heading,
+    headingSource,
     pitch: col("pitch_deg"),
     roll: col("roll_deg"),
     vedba: col("vedba"),
