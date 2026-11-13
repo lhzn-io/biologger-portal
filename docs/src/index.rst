@@ -5,6 +5,11 @@ The biologger portal is the WHOI Marine Predators Group's hub for biologger depl
 deployments and their files, real validation of the tag data, and a viewer that draws each reconstructed
 track over fused bathymetry.
 
+.. toctree::
+   :maxdepth: 1
+
+   deploy
+
 Sections are added as each part ships:
 
 - Deployments and the file grid

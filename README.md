@@ -44,15 +44,16 @@ cd server && uv run ruff check && uv run mypy && uv run pytest
 
 ## Deployment
 
-The image runs on a fleet host with the datasets folder mounted at `/data`, bound to the loopback interface, and is published through a Cloudflare Tunnel behind Cloudflare Access.
+Two halves run on the fleet host that holds the datasets folder:
+
+- **Hub:** the container from `deploy/compose.yaml`, on the lab network and the WireGuard VPN at `http://garnet.internal:8797` (read-only for now).
+- **Published viewer:** a static snapshot at `https://whoi-mpg.lhzn.io`, served by Cloudflare behind Cloudflare Access, deployed by `deploy/cloudflare/publish.sh` and refreshed by the daily run in `deploy/daily.sh`.
 
 ```bash
-docker build -t biologger-portal .
+docker compose -f deploy/compose.yaml up -d --build
 ```
 
-```bash
-docker run -d --name biologger-portal -p 127.0.0.1:8797:8797 -v /path/to/datasets:/data biologger-portal
-```
+Details are in `docs/src/deploy.rst`.
 
 Telemetry and datasets never live in this repository.
 

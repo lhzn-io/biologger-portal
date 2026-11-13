@@ -32,6 +32,9 @@ walkthrough.md
 *.csv
 *.feather
 
+# Deployment settings with secrets
+deploy/portal.env
+
 # Licensed animal models and their packed forms (paid assets; never in this public repository)
 *.glb
 *.gltf

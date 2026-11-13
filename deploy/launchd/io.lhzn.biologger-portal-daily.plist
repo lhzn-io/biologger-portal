@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The portal's daily run (deploy/daily.sh): scan the datasets, republish the viewer when anything changed.
+  Install: cp to ~/Library/LaunchAgents/ and `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.lhzn.biologger-portal-daily.plist`.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>io.lhzn.biologger-portal-daily</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/lhzn/Projects/whoi-mpg/biologger-portal/deploy/daily.sh</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>4</integer>
+    <key>Minute</key>
+    <integer>15</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/Users/lhzn/Library/Logs/biologger-portal-daily.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/lhzn/Library/Logs/biologger-portal-daily.log</string>
+</dict>
+</plist>

@@ -20,7 +20,7 @@ Repository context and rules for AI developer agents. The design and phase plan 
 - `web/`: React 19, Vite, strict TypeScript, Tailwind 4, React Router, TanStack Query, Vitest. Commands: `npm run dev | build | typecheck | lint | test`.
 - `server/`: FastAPI under uv, package `biologger_portal` in `server/src/`. Commands: `uv run biologger-portal serve [--reload]`, `uv run pytest`, `uv run ruff check`, `uv run mypy`.
 - Settings are `PORTAL_*` environment variables (`server/src/biologger_portal/settings.py`): `PORTAL_DATASETS_ROOT`, `PORTAL_WEB_DIST`, `PORTAL_TOPOBATHYKIT_URL`, `PORTAL_ACCESS_TEAM_DOMAIN`, `PORTAL_ACCESS_AUD`, `PORTAL_EDITORS`.
-- The server binds `127.0.0.1:8797`. Production traffic arrives only through the Cloudflare Tunnel at `whoi-mpg.lhzn.io`, behind Cloudflare Access; the server reads the user's email from the `Cf-Access-Jwt-Assertion` header.
+- The dev server binds `127.0.0.1:8797`. In production the hub container publishes 8797 to the lab network and VPN (`garnet.internal:8797`, no internet route, anonymous read-only); the published viewer is a static snapshot on a Cloudflare Worker at `whoi-mpg.lhzn.io` behind Cloudflare Access (`deploy/cloudflare/publish.sh`, daily via `deploy/daily.sh`). Editors are recognized only from the `Cf-Access-Jwt-Assertion` header. See `docs/src/deploy.rst`.
 - Proxy targets and server URLs use `127.0.0.1`, never `localhost` (Node 17+ resolves localhost to `::1`).
 
 ## Data

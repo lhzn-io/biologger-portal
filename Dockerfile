@@ -14,8 +14,9 @@ COPY web/ ./
 COPY configs/ /src/configs/
 RUN npm run build
 
-# Stage 2: the server, serving the build.
-FROM python:3.12-slim
+# Stage 2: the server's environment. git fetches the pinned biologger-sim tag; it stays out of the final image.
+FROM python:3.12-slim AS server
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 COPY --from=ghcr.io/astral-sh/uv:0.11.3 /uv /usr/local/bin/uv
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 WORKDIR /app/server
@@ -23,6 +24,10 @@ COPY server/pyproject.toml server/uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 COPY server/ ./
 RUN uv sync --frozen --no-dev
+
+# Stage 3: the runtime, serving the build.
+FROM python:3.12-slim
+COPY --from=server /app/server /app/server
 COPY --from=web /src/web/dist /app/web/dist
 
 ENV PORTAL_WEB_DIST=/app/web/dist \
