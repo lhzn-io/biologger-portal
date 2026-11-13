@@ -40,7 +40,9 @@ export function loadDem(depId: string, runId: string): Promise<Dem> {
 export async function loadDemFrom(terrainUrl: string): Promise<Dem> {
   const tRes = await fetch(resolve(terrainUrl));
   if (!tRes.ok) throw new Error(((await tRes.json().catch(() => ({}))) as { detail?: string }).detail ?? `terrain ${tRes.status}`);
-  const terrain = (await tRes.json()) as Terrain;
+  const terrain = (await tRes.json()) as Terrain & { detail?: string };
+  // A published track with no DEM carries only the reason, where the hub answers 404 with it.
+  if (!terrain.meta_url) throw new Error(terrain.detail ?? "no terrain for this track");
   const [mRes, eRes] = await Promise.all([fetch(resolve(terrain.meta_url)), fetch(resolve(terrain.elevation_url))]);
   if (!mRes.ok || !eRes.ok) {
     const detail = !mRes.ok ? await mRes.text() : await eRes.text();

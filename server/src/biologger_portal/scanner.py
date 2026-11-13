@@ -251,7 +251,7 @@ def _index_track(catalog: Catalog, manifest_path: Path, rel: str, dep: str, now:
                 meta.get("run_id") or folder.rsplit("/", 1)[-1],
                 folder,
                 meta.get("track_model_used", ""),
-                prov.get("sim_git_commit", ""),
+                prov.get("sim_git_commit") or "",  # null when back-filled from an output CSV
                 1 if prov.get("sim_git_dirty") else 0,
                 meta.get("rate_hz"),
                 meta.get("count"),

@@ -92,3 +92,17 @@ def test_refuses_without_cached_terrain_or_into_a_foreign_folder(settings: Setti
     with pytest.raises(PublishError, match="not empty"):
         run_publish(client2, settings, foreign)
     assert (foreign / "keep.txt").is_file()
+
+
+def test_publishes_a_track_with_no_dem_without_terrain(settings: Settings, tmp_path: Path) -> None:
+    client = ready_client(settings)
+    app: Any = client.app
+    with app.state.catalog.tx() as conn:
+        conn.execute("UPDATE deployment SET dem_dataset='', dem_policy='' WHERE id='WHOI.900_20250101'")
+    m = run_publish(client, settings, tmp_path / "pub")
+    data = tmp_path / "pub" / "data" / "v1"
+    assert (data / "tracks/WHOI.900_20250101/run-1/track.f32").is_file()
+    terrain = json.loads((data / "terrain/WHOI.900_20250101/run-1/terrain.json").read_text())
+    assert terrain == {"detail": "WHOI.900_20250101 has no DEM dataset assigned"}
+    assert not (data / "terrain/WHOI.900_20250101/run-1/elevation.bin").exists()
+    assert len(m["tracks"]) == 1

@@ -1,6 +1,7 @@
 # Copyright (c) 2026 Long Horizon Observatory
 # Licensed under the Apache License, Version 2.0. See LICENSE file for details.
 
+import json
 import shutil
 from pathlib import Path
 
@@ -118,3 +119,17 @@ def test_reexport_carries_the_review_to_the_new_run(datasets: Path) -> None:
     )
     assert audit == {"actor": "scan", "old_value": "run-1", "new_value": "run-2"}
     assert scan(cat, datasets).reviews_carried == []  # settled
+
+
+def test_backfilled_bundle_without_sim_commit_is_indexed(datasets: Path) -> None:
+    cat = Catalog(datasets / ".portal" / "catalog.db")
+    import_all(cat, datasets, actor="test")
+    dep = "WHOI.900_20250101"
+    folder = datasets / dep / "tracks" / "run-old"
+    write_track(folder, dep, "run-old")
+    meta = json.loads((folder / "track.json").read_text())
+    meta["provenance"] = {"source": "from-run", "sim_git_commit": None, "sim_git_dirty": None}
+    (folder / "track.json").write_text(json.dumps(meta))
+    assert scan(cat, datasets).tracks == 2
+    row = cat.one("SELECT sim_git_commit, sim_git_dirty FROM track WHERE run_id='run-old'")
+    assert row == {"sim_git_commit": "", "sim_git_dirty": 0}

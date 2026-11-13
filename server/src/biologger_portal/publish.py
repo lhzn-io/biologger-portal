@@ -147,8 +147,10 @@ def publish(catalog: Catalog, root: Path, out_dir: Path, proxy: TopobathyProxy, 
     missing_terrain = []
     for t in tracks:
         bbox = track_bbox(loads(t["bounds"]))
-        if not t["dem_dataset"] or bbox is None:
-            missing_terrain.append(f"{t['deployment_id']} (no DEM dataset or bounds)")
+        if not t["dem_dataset"]:
+            continue  # no topobathykit grid covers the track yet: published without a seafloor
+        if bbox is None:
+            missing_terrain.append(f"{t['deployment_id']} (no lat/lon bounds)")
         elif not all(
             proxy.cached(t["dem_dataset"], p, bbox_param(bbox), max_dim) for p in ("meta", "elevation.bin")
         ):
@@ -170,6 +172,13 @@ def publish(catalog: Catalog, root: Path, out_dir: Path, proxy: TopobathyProxy, 
             if not (src / name).is_file():
                 raise PublishError(f"{t['path']}/{name} is missing on disk")
             shutil.copyfile(src / name, dest / name)
+        if not t["dem_dataset"]:
+            # The viewer reads "detail" as the reason there is no terrain (as the hub's 404 says).
+            _dump(
+                data / "terrain" / dep / run / "terrain.json",
+                {"detail": f"{dep} has no DEM dataset assigned"},
+            )
+            continue
         bbox = track_bbox(loads(t["bounds"]))
         assert bbox is not None
         _copy_terrain(proxy, t["dem_dataset"], bbox_param(bbox), max_dim, data / "terrain" / dep / run)
