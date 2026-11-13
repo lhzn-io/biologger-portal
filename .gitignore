@@ -31,3 +31,9 @@ walkthrough.md
 # Telemetry and datasets never live in this repository
 *.csv
 *.feather
+
+# Licensed animal models and their packed forms (paid assets; never in this public repository)
+*.glb
+*.gltf
+*.blgm
+deploy/models/dev-out/

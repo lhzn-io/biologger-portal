@@ -12,6 +12,7 @@
 # Settings come from ~/.config/biologger-portal/env (never committed):
 #   CLOUDFLARE_ACCOUNT_ID   the account that holds the lhzn.io zone
 #   PORTAL_DATASETS_ROOT    defaults to ~/Projects/whoi-mpg/datasets
+#   PORTAL_MODELS_DIR       the licensed animal models (.glb); defaults to ~/Projects/whoi-mpg/models/cgtrader
 # Authentication: `npx wrangler@4 login` once on this machine.
 set -euo pipefail
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -57,13 +58,34 @@ fi
 cd "$REPO/server"
 uv run --quiet biologger-portal publish --out "$SNAPSHOT"
 
-# 2. The web app in published mode.
+# 2. Animal models. They are paid assets that may only be used built into the viewer, so they are never served
+# as they are: deploy/models/pack-models.mjs packs them into the viewer's own format, encrypted under a key made
+# for this build and compiled into it. Without the source folder the 3D view draws a plain marker.
+MODELS_SRC="${PORTAL_MODELS_DIR:-$HOME/Projects/whoi-mpg/models/cgtrader}"
+MODELS_OUT="$(mktemp -d)"
+trap 'rm -rf "$MODELS_OUT"' EXIT
+if [ -d "$MODELS_SRC" ]; then
+  MODEL_KEY="$(openssl rand -hex 32)"
+  export MODEL_KEY VITE_MODEL_KEY="$MODEL_KEY" # the key reaches the packer and the build through the environment
+  cd "$REPO/deploy/models"
+  [ node_modules/.package-lock.json -nt package-lock.json ] || npm ci --no-audit --no-fund
+  node pack-models.mjs --src "$MODELS_SRC" --out "$MODELS_OUT"
+else
+  echo "no animal models at $MODELS_SRC: the 3D view will draw a plain marker"
+  export VITE_MODEL_KEY=""
+fi
+
+# 3. The web app in published mode.
 cd "$REPO/web"
 [ node_modules/.package-lock.json -nt package-lock.json ] || npm ci --no-audit --no-fund
 npm run -s build:published
 
-# 3. Assemble: build + snapshot + headers.
+# 4. Assemble: build + snapshot + models + headers.
 cp -R "$SNAPSHOT/data" dist-published/
+if [ -f "$MODELS_OUT/models.json" ]; then
+  mkdir -p dist-published/models
+  cp "$MODELS_OUT"/*.blgm "$MODELS_OUT/models.json" dist-published/models/
+fi
 cp "$REPO/deploy/cloudflare/_headers" dist-published/_headers
 echo "assembled $(du -sh dist-published | cut -f1) in web/dist-published"
 
@@ -72,7 +94,7 @@ if [ "$DRY_RUN" = 1 ]; then
   exit 0
 fi
 
-# 4. Deploy. On the first deploy, the shell goes up alone until Access is seen answering for the new domain.
+# 5. Deploy. On the first deploy, the shell goes up alone until Access is seen answering for the new domain.
 cd "$REPO/deploy/cloudflare"
 if [ "$FIRST" = 1 ]; then
   HELD="$(mktemp -d)"

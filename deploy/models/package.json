@@ -1,0 +1,14 @@
+{
+  "name": "biologger-portal-pack-models",
+  "private": true,
+  "type": "module",
+  "description": "Packs licensed animal models into the viewer's encrypted format at publish time.",
+  "scripts": { "pack": "node pack-models.mjs" },
+  "devDependencies": {
+    "@gltf-transform/core": "4.2.1",
+    "@gltf-transform/extensions": "4.2.1",
+    "@gltf-transform/functions": "4.2.1",
+    "meshoptimizer": "0.25.0",
+    "sharp": "0.34.4"
+  }
+}

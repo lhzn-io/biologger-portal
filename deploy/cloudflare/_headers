@@ -9,6 +9,11 @@
   Cache-Control: private, no-cache
   X-Robots-Tag: noindex, nofollow
 
+# Packed animal models (encrypted per build) and their index: re-fetched after each publish, never cached by others.
+/models/*
+  Cache-Control: private, no-cache
+  X-Robots-Tag: noindex, nofollow
+
 /*
   X-Robots-Tag: noindex, nofollow
   X-Content-Type-Options: nosniff

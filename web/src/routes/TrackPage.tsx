@@ -131,7 +131,7 @@ export default function TrackPage() {
 
       <CollectPanel id={`${key}:scene`} title={`3D view, ${depId}`} text={() => mapText(tr, dem.data ?? null, exag, scale, species)}>
         <div className="relative h-[36rem]">
-          <Scene3D track={tr} dem={dem.data ?? null} cursor={cursor} exaggeration={exag} depthMax={scale.max} follow={follow} viewRef={view} />
+          <Scene3D track={tr} dem={dem.data ?? null} cursor={cursor} exaggeration={exag} depthMax={scale.max} follow={follow} species={species} viewRef={view} />
           <Legend depth={scale} species={species} />
           <SceneControls
             onFocus={() => view.current?.focusAnimal()}

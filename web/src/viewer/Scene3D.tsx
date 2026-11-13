@@ -5,6 +5,7 @@ import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { createVantage, type Vantage } from "../vendor/vantagekit/vantagekit-three.js";
+import { loadAnimalModel } from "./animal";
 import { elevationAt, elevationColor, trackDepthColor, type Dem } from "./dem";
 import { EARTH_RADIUS_M, strideIndices, type Track } from "./track";
 
@@ -27,8 +28,15 @@ interface SceneState {
   drop: THREE.Line;
   exag: number;
   frame: number;
-  focusDist: number; // view distance (scene units) for "zoom to the animal"
+  trueLen: number; // the animal's true length in scene units
 }
+
+/** Length (m) assumed for the stand-in marker when no species model is loaded. */
+const DEFAULT_LENGTH_M = 2.5;
+/** The smallest the animal is drawn on screen (pixels along its body). */
+const MARKER_PX = 40;
+/** How large "Zoom to animal" makes the animal on screen (pixels, at true size). */
+const FOCUS_PX = 160;
 
 /** Camera actions the page's controls call. */
 export interface SceneView {
@@ -48,6 +56,7 @@ export default function Scene3D({
   exaggeration,
   depthMax,
   follow = false,
+  species,
   viewRef,
 }: {
   track: Track;
@@ -58,6 +67,8 @@ export default function Scene3D({
   depthMax: number;
   /** Hold the orbit point on the animal as the cursor moves (orbit and zoom only; no pan). */
   follow?: boolean;
+  /** Scientific name, to draw the animal with its species model where one is packed. */
+  species?: string;
   viewRef?: RefObject<SceneView | null>;
 }) {
   const box = useRef<HTMLDivElement>(null);
@@ -159,14 +170,16 @@ export default function Scene3D({
     const line = new Line2(lineGeo, lineMat);
     scene.add(line);
 
-    // The animal: an elongated cone pointing along -z (north at heading 0).
-    const len = (spanM * S) / 40;
+    // The animal, built at unit length with the head along -z (north at heading 0) and the back along +y, and
+    // scaled every frame (see the loop). Until the species model loads, or without one, an elongated cone with a
+    // dorsal fin stands in.
+    const len = (spanM * S) / 40; // dash length for the drop line
     const marker = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.ConeGeometry(len * 0.18, len, 12), new THREE.MeshLambertMaterial({ color: 0x3b9cff }));
+    const body = new THREE.Mesh(new THREE.ConeGeometry(0.18, 1, 12), new THREE.MeshLambertMaterial({ color: 0x3b9cff }));
     body.rotation.x = -Math.PI / 2;
     marker.add(body);
-    const fin = new THREE.Mesh(new THREE.BoxGeometry(len * 0.02, len * 0.25, len * 0.3), new THREE.MeshLambertMaterial({ color: 0xffffff }));
-    fin.position.set(0, len * 0.15, len * 0.1);
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.25, 0.3), new THREE.MeshLambertMaterial({ color: 0xffffff }));
+    fin.position.set(0, 0.15, 0.1);
     marker.add(fin);
     marker.rotation.order = "YXZ";
     scene.add(marker);
@@ -187,7 +200,7 @@ export default function Scene3D({
       metersPerUnit: 1 / S,
       exaggeration: () => state.current?.exag ?? exag,
       mouse: "pan-left",
-      minDistance: 0.5,
+      minDistance: 0.05, // 5 m, close enough to see the animal at true size
       maxPolarAngle: Math.PI * 0.85,
       keys: "focus",
     });
@@ -237,8 +250,10 @@ export default function Scene3D({
     const clock = new THREE.Clock();
     const st: SceneState = {
       renderer, scene, camera, nav, terrain, terrainZ, line, lineIdx, marker, drop, exag, frame: 0,
-      focusDist: Math.max(len * 8, 1),
+      trueLen: DEFAULT_LENGTH_M * S,
     }; // prettier-ignore
+    // Scene units per screen pixel at distance d from the camera.
+    const perPixel = (d: number) => (2 * d * Math.tan((camera.fov * D2R) / 2)) / (el.clientHeight || 400);
     state.current = st;
     placeMarker(st, track, dem, cursor);
     if (viewRef) {
@@ -248,7 +263,8 @@ export default function Scene3D({
           const p = st.marker.position;
           void c.setFocalOffset(0, 0, 0, true);
           void c.moveTo(p.x, p.y, p.z, true);
-          void c.dollyTo(st.focusDist, true);
+          // close enough that the animal, at true size, spans FOCUS_PX on screen
+          void c.dollyTo(Math.max(c.minDistance, st.trueLen / perPixel(1) / FOCUS_PX), true);
         },
         home: () => nav.home(true),
       };
@@ -256,6 +272,9 @@ export default function Scene3D({
     const loop = () => {
       st.frame = requestAnimationFrame(loop);
       nav.update(clock.getDelta());
+      // The animal is drawn at its true length when that is at least MARKER_PX on screen, and at MARKER_PX when
+      // it would be smaller, so it stays visible from kilometres away.
+      st.marker.scale.setScalar(Math.max(st.trueLen, MARKER_PX * perPixel(camera.position.distanceTo(st.marker.position))));
       renderer.render(scene, camera);
     };
     loop();
@@ -315,6 +334,30 @@ export default function Scene3D({
       void st.nav.controls.moveTo(p.x, p.y, p.z, true);
     }
   }, [track, dem, cursor, follow]);
+
+  // The species model replaces the stand-in marker once it loads (the species arrives with the tracks list,
+  // after the scene is built, and a new scene starts again from the stand-in).
+  useEffect(() => {
+    const st = state.current;
+    if (!st) return;
+    let alive = true;
+    void loadAnimalModel(species).then((model) => {
+      if (!alive || !model || state.current !== st) return;
+      const old = [...st.marker.children] as THREE.Mesh[];
+      st.marker.clear();
+      old.forEach((m) => {
+        m.geometry.dispose();
+        (m.material as THREE.Material).dispose();
+      });
+      // The geometry and texture are shared through the loader's cache, so the material is the only new object.
+      const mat = new THREE.MeshLambertMaterial(model.texture ? { map: model.texture } : { color: 0x8aa0b8 });
+      st.marker.add(new THREE.Mesh(model.geometry, mat));
+      st.trueLen = model.length_m * S;
+    });
+    return () => {
+      alive = false;
+    };
+  }, [track, dem, species]);
 
   // A new colour scale recolours the track in place (the camera stays).
   useEffect(() => {
