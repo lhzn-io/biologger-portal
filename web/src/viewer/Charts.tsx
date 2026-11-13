@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { markAsOf, niceStep, renderLines, type Area, type Line, type Span } from "@lhzn-io/timecharts/chart";
 import { timeTrack } from "@lhzn-io/timecharts/time-axis";
 import "@lhzn-io/timecharts/tokens.css";
@@ -9,7 +9,7 @@ import { lines } from "../collect/prompt";
 import { chartText } from "../collect/texts";
 import { elevationAt, type Dem } from "./dem";
 import { postureByDepth, quantile, UPRIGHT_DEG, wrap180, type SideStats } from "./posture";
-import { analyseRoll } from "./roll";
+import { analyzeRoll, PITCH_LIMIT_DEG, STEP_AMBIGUOUS_DEG } from "./roll";
 import { indexAt, strideIndices, timeOf, type Track } from "./track";
 
 const CHART_POINTS = 1500;
@@ -29,17 +29,28 @@ export interface ChartSeries {
   /** Include zero in the value range, and the least value the range reaches down to. */
   zero?: boolean;
   floor?: number;
-  /** One line under the chart, and facts for the Collect prompt beyond the line statistics. */
+  /** One short line under the chart; the method and its limits go in `caption`, behind the (i) button. */
+  summary?: string;
   caption?: string;
+  /** Facts for the Collect prompt beyond the line statistics. */
   notes?: [string, string][];
 }
 
-/** Roll direction colours: positive roll (right side down) and negative. */
+/** Roll direction colors: positive roll (right side down) and negative. */
 const ROLL_POS = "#f472b6";
 const ROLL_NEG = "#38bdf8";
 
+/** Per drawn point, whether any sample in its interval (up to the next drawn point) is doubtful. */
+function spanFlags(idx: number[], n: number, doubt: Uint8Array): boolean[] {
+  return idx.map((i0, j) => {
+    const i1 = j + 1 < idx.length ? idx[j + 1]! : n;
+    for (let i = i0; i < i1; i++) if (doubt[i]) return true;
+    return false;
+  });
+}
+
 function rollSeries(track: Track, idx: number[], xs: number[]): ChartSeries {
-  const roll = analyseRoll(track);
+  const roll = analyzeRoll(track);
   const n = track.count;
   const lo: number[] = [];
   const hi: number[] = [];
@@ -60,22 +71,21 @@ function rollSeries(track: Track, idx: number[], xs: number[]): ChartSeries {
     lo.push(mn / 360);
     hi.push(mx / 360);
     mid.push(roll.cum[i0]! / 360);
-    // Doubtful stretches, merged over consecutive drawn points, as faint full-height spans.
-    const x0 = xs[j]!;
-    const x1 = j + 1 < xs.length ? xs[j + 1]! : timeOf(track, n - 1);
-    if (doubtful && doubtFrom == null) doubtFrom = x0;
+    // Doubtful stretches, merged over consecutive drawn points, as full-height spans; each reaches one drawn point
+    // past its ends (the bridge's good samples), so a short stretch on a long track stays visible.
+    if (doubtful && doubtFrom == null) doubtFrom = xs[Math.max(0, j - 1)]!;
     if ((!doubtful || j === idx.length - 1) && doubtFrom != null) {
       spans.push({
         x0: doubtFrom,
-        x1: doubtful ? x1 : x0,
-        fill: "rgba(148, 163, 184, 0.16)",
-        title: "Roll uncertain here: a step too large to unwrap, pitch beyond 65 degrees, or a gap",
+        x1: doubtful ? timeOf(track, n - 1) : xs[j]!,
+        fill: "rgba(148, 163, 184, 0.3)",
+        title: "Roll uncertain here (pitch beyond 65 degrees, a step too large to unwrap, or a gap): bridged, and the total after it uncertain by at least half a turn",
       });
       doubtFrom = null;
     }
   });
   // The revolution rug: one mark per drawn interval holding completed turns, along the time axis, taller for more
-  // turns and coloured by their net direction; paler where any of them is doubtful.
+  // turns and colored by their net direction; paler where any of them is doubtful.
   const perPoint = new Map<number, { pos: number; neg: number; doubtful: boolean }>();
   for (const r of roll.revolutions) {
     let j = 0;
@@ -109,8 +119,46 @@ function rollSeries(track: Track, idx: number[], xs: number[]): ChartSeries {
     });
   }
 
-  const lowest = Math.min(...lo);
-  const highest = Math.max(...hi);
+  // Across each doubtful run of drawn points the held total means nothing, so the solid line and its range band
+  // break there. A dashed connector joins the good points either side, inside a band half a turn either way: the
+  // least the bridged change can be wrong by near vertical (a gap can hide more).
+  const flagged = spanFlags(idx, n, roll.doubt);
+  const solid = mid.map((v, j) => (flagged[j] ? NaN : v));
+  const bridge: number[] = new Array<number>(mid.length).fill(NaN);
+  const bLo: number[] = new Array<number>(mid.length).fill(NaN);
+  const bHi: number[] = new Array<number>(mid.length).fill(NaN);
+  let stretches = 0;
+  for (let j = 0; j < mid.length; ) {
+    if (!flagged[j]) {
+      j++;
+      continue;
+    }
+    let k = j;
+    while (k < mid.length && flagged[k]) k++;
+    stretches++;
+    const a = Math.max(0, j - 1);
+    const b = Math.min(mid.length - 1, k);
+    const endsInside = k >= mid.length;
+    const v0 = mid[a]!;
+    const v1 = endsInside ? v0 : roll.cum[idx[b]!]! / 360;
+    for (let q = a; q <= b; q++) {
+      const f = b > a ? (xs[q]! - xs[a]!) / (xs[b]! - xs[a]!) : 0;
+      bridge[q] = v0 + f * (v1 - v0);
+      bLo[q] = bridge[q]! - 0.5;
+      bHi[q] = bridge[q]! + 0.5;
+    }
+    j = k;
+  }
+  for (let j = 0; j < mid.length; j++) {
+    if (flagged[j]) {
+      lo[j] = NaN;
+      hi[j] = NaN;
+    }
+  }
+
+  const finite = (v: number) => Number.isFinite(v);
+  const lowest = Math.min(...lo.filter(finite), ...bLo.filter(finite));
+  const highest = Math.max(...hi.filter(finite), ...bHi.filter(finite));
   const step = Math.max(1, Math.round(niceStep(Math.max(1, highest - lowest))));
   const at: number[] = [];
   for (let v = Math.floor(lowest / step) * step - step; v <= Math.ceil(highest / step) * step + step; v += step) at.push(v);
@@ -132,20 +180,40 @@ function rollSeries(track: Track, idx: number[], xs: number[]): ChartSeries {
     title: "Cumulative roll (revolutions)",
     unit: "",
     xs,
-    lines: [{ ys: mid, color: ROLL_POS, label: "Cumulative roll", fmt: (v) => `${v.toFixed(2)} rev` }],
-    areas: [{ lo, hi, fill: ROLL_POS, opacity: 0.22 }],
+    lines: [
+      { ys: bridge, color: "#94a3b8", width: 1.5, dash: "4 3", label: "Bridged (uncertain)", fmt: (v) => `${v.toFixed(2)} rev, uncertain by at least 0.5` },
+      { ys: solid, color: ROLL_POS, label: "Cumulative roll", fmt: (v) => `${v.toFixed(2)} rev` },
+    ],
+    areas: [
+      { lo: bLo, hi: bHi, fill: "#94a3b8", opacity: 0.35 },
+      { lo, hi, fill: ROLL_POS, opacity: 0.22 },
+    ],
     spans,
     yTicks: { at, label: (v) => `${v}` },
     // At least two revolutions of height, so rocking within one turn reads as a thin band between the rules.
     minPad: Math.max(0.1, (2.4 - (highest - lowest)) / 2),
+    summary:
+      `${pos + neg} full turn${pos + neg === 1 ? "" : "s"}${doubtfulTurns ? ` (${doubtfulTurns} doubtful)` : ""}; ` +
+      `net ${((roll.cum[n - 1]! - roll.cum[0]!) / 360).toFixed(2)}` +
+      `${stretches ? `; ${stretches} uncertain bridge${stretches === 1 ? "" : "s"} (dashed)` : ""}.`,
     caption:
-      `${pos} full turn${pos === 1 ? "" : "s"} right side down and ${neg} the other way` +
-      `${doubtfulTurns ? ` (${doubtfulTurns} doubtful)` : ""}; ${ceiling}.`,
+      `The running total of roll, in turns: a fish that spins climbs past the whole-turn rules; one that rocks stays ` +
+      `in a band. A turn counts when the total passes 360 degrees (plus 30 for the first of a direction); the rug ` +
+      `marks each, pink right side down (${pos} here), blue the other way (${neg}). Roll is ${ceiling}. Shaded stretches are where roll ` +
+      `cannot be trusted (pitch beyond ${PITCH_LIMIT_DEG} degrees, where roll is undefined; a jump over ` +
+      `${STEP_AMBIGUOUS_DEG} degrees in one sample; or a gap). The total holds through each, then resumes by the ` +
+      `shortest rotation to the next good sample, so no turn is counted inside one: ` +
+      `${(roll.bridgedDeg / 360).toFixed(1)} turns registered in them were set aside. The dashed line and gray band ` +
+      `mark these bridges. What the fish did inside one is unknown, and the change across it can be wrong by up to ` +
+      `half a turn near vertical (more across a gap); any such error carries into the rest of the line as an offset, ` +
+      `so read the level after a bridge as uncertain, and the rocking and climbing within good stretches as sound.`,
     notes: [
       ["roll_source", ceiling],
       ["revolutions", `${pos} positive (right side down), ${neg} negative, ${doubtfulTurns} of them doubtful`],
       ["net_roll_rev", ((roll.cum[n - 1]! - roll.cum[0]!) / 360).toFixed(2)],
       ["doubtful_samples", `${roll.doubtfulSteps} of ${n} (step over 135 deg, pitch beyond 65 deg, or a gap)`],
+      ["bridged", `across each doubtful stretch only the shortest rotation between the good samples either side is kept; ${(roll.bridgedDeg / 360).toFixed(2)} turns registered inside them set aside (absolute sum)`],
+      ["uncertainty", `${stretches} bridged stretches at chart resolution; motion inside each is unknown, and each bridged change can be wrong by up to 0.5 turn near vertical (more across a gap), an error that offsets the rest of the total; net turns are therefore uncertain by up to 0.5 turn per bridge`],
       ["counting", "a turn counts when the running total passes 360 degrees, plus 30 degrees for the first of a direction"],
     ],
   };
@@ -207,7 +275,7 @@ function postureSeries(track: Track, idx: number[], xs: number[]): ChartSeries {
   const pct = (v: number) => `${v.toFixed(0)} % of interval`;
   return {
     id: "posture",
-    title: "Roll angle (degrees; right side down above zero, left side down below)",
+    title: "Roll angle (degrees)",
     unit: "",
     xs,
     lines: [
@@ -233,13 +301,14 @@ function postureSeries(track: Track, idx: number[], xs: number[]): ChartSeries {
     yTicks: { at: [-180, -135, -90, -45, 0, 45, 90, 135, 180].filter((v) => Math.abs(v) <= reach), label: (v) => `${v}` },
     minPad: 2,
     caption:
-      `0 upright, +90 right side down, -90 left side down; each side's median and 10 to 90 % range per interval, ` +
-      `counting rolls past ${UPRIGHT_DEG} deg (nearer upright counts to neither side); lines faint where a side holds under ` +
-      `${100 * STRONG_SHARE} % of the interval. Rolled past ${UPRIGHT_DEG} deg: right ${(100 * rightShare).toFixed(0)} % ` +
-      `of the time, left ${(100 * leftShare).toFixed(0)} %. ` +
-      `From the accelerometer's gravity roll, smoothed over 2 to 3 s (posture, not tailbeat).`,
+      `How far the fish is tipped onto its side: 0 upright, above zero right side down (+90 on its right side), below ` +
+      `zero left side down. Per drawn interval, each side's median and 10 to 90 % range, counting rolls past ` +
+      `${UPRIGHT_DEG} deg (nearer upright counts to neither side); lines faint where a side holds under ` +
+      `${100 * STRONG_SHARE} % of the interval. Hover for each side's share. Over the whole record: right side down ` +
+      `${(100 * rightShare).toFixed(0)} % of the time, left ${(100 * leftShare).toFixed(0)} %. From the accelerometer's ` +
+      `gravity roll, smoothed over 2 to 3 s (posture, not tailbeat).`,
     notes: [
-      ["definition", `roll angle, positive right side down, negative left side down; per interval each side summarised separately, counting rolls past ${UPRIGHT_DEG} deg`],
+      ["definition", `roll angle, positive right side down, negative left side down; per interval each side summarized separately, counting rolls past ${UPRIGHT_DEG} deg`],
       ["time_rolled_past_20_deg", `right ${(100 * rightShare).toFixed(1)} %, left ${(100 * leftShare).toFixed(1)} %`],
       ["roll_source", "static (gravity) roll from the accelerometer, smoothed over about 2 to 3 s by the simulator"],
     ],
@@ -272,7 +341,7 @@ const DAY = "#fbbf24";
 const NIGHT = "#818cf8";
 
 /**
- * Roll by depth band as a butterfly: upright at the centre, left side down to the left, right side down to the right.
+ * Roll by depth band as a butterfly: upright at the center, left side down to the left, right side down to the right.
  * Per band, day and night on their own rows, each side gets a dot at the median and a bar over the middle half of
  * its rolls, labelled with the share of the band's time spent on that side. Bands with under a minute of data are
  * left out. This is the view that tests whether the animal rolls more at depth, and to which side.
@@ -280,6 +349,7 @@ const NIGHT = "#818cf8";
 function PostureByDepth({ track, collectId }: { track: Track; collectId: string }) {
   const bins = useMemo(() => postureByDepth(track).filter((b) => b.minutes >= 1), [track]);
   const fig = useRef<HTMLElement>(null);
+  const [info, setInfo] = useState(false);
   const title = `Roll by depth, ${track.manifest.deployment_id}`;
   const text = () =>
     lines([
@@ -308,7 +378,8 @@ function PostureByDepth({ track, collectId }: { track: Track; collectId: string 
     <figure ref={fig} data-collect-item>
       <figcaption className="mb-1 flex flex-wrap items-center text-xs text-muted">
         <CollectButton id={collectId} title={title} kind="chart" />
-        Roll by depth (degrees from upright; left side down to the left, right side down to the right)
+        Roll by depth
+        <InfoButton open={info} onToggle={() => setInfo(!info)} what="this chart" />
         <span className="ml-3 flex items-center gap-3">
           <span className="flex items-center gap-1">
             <i className="inline-block h-2 w-2 rounded-full" style={{ background: DAY }} />
@@ -321,7 +392,7 @@ function PostureByDepth({ track, collectId }: { track: Track; collectId: string 
         </span>
       </figcaption>
       {rows.length === 0 ? (
-        <p className="text-xs text-muted">No depth and roll samples to summarise.</p>
+        <p className="text-xs text-muted">No depth and roll samples to summarize.</p>
       ) : (
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-3xl" role="img" aria-label={title}>
           <rect x={x(UPRIGHT_DEG, -1)} width={x(UPRIGHT_DEG, 1) - x(UPRIGHT_DEG, -1)} y={0} height={H - 18} fill="currentColor" opacity={0.06} />
@@ -391,13 +462,35 @@ function PostureByDepth({ track, collectId }: { track: Track; collectId: string 
           })}
         </svg>
       )}
-      <p className="mt-0.5 text-xs text-muted">
-        Centre: the share of the band&apos;s time within {UPRIGHT_DEG} degrees of upright (shaded). Per side: dot the median, bar the middle half of the rolls past {UPRIGHT_DEG} degrees, the figure the share of the band&apos;s time on that
-        side (bars fainter for small shares; rows paler with under 10 minutes). Day is the sun above the horizon at the
+      <InfoNote open={info}>
+        Roll in degrees from upright, per depth band: left side down to the left, right side down to the right. Center:
+        the share of the band&apos;s time within {UPRIGHT_DEG} degrees of upright (shaded). Per side: dot the median, bar
+        the middle half of the rolls past {UPRIGHT_DEG} degrees, the figure the share of the band&apos;s time on that side
+        (bars fainter for small shares; rows paler with under 10 minutes). Day is the sun above the horizon at the
         fish&apos;s position.
-      </p>
+      </InfoNote>
     </figure>
   );
+}
+
+/** The (i) button for a chart's method note; the note itself is drawn by InfoNote, under the chart. */
+function InfoButton({ open, onToggle, what }: { open: boolean; onToggle: () => void; what: string }) {
+  return (
+    <button
+      type="button"
+      aria-label={open ? `Hide how ${what} is made` : `How ${what} is made`}
+      aria-expanded={open}
+      title={open ? undefined : "How this chart is made"}
+      onClick={onToggle}
+      className="ml-1.5 h-4 w-4 shrink-0 rounded-full border border-line font-serif text-[10px] leading-none text-muted italic hover:text-ink"
+    >
+      i
+    </button>
+  );
+}
+
+function InfoNote({ open, children }: { open: boolean; children: ReactNode }) {
+  return open ? <p className="mt-1 max-w-3xl border-l-2 border-line pl-2 text-xs text-muted">{children}</p> : null;
 }
 
 function Chart({
@@ -415,6 +508,7 @@ function Chart({
 }) {
   const plot = useRef<HTMLDivElement>(null);
   const fig = useRef<HTMLElement>(null);
+  const [info, setInfo] = useState(false);
   const itemTitle = `${series.title}, ${deploymentId}`;
   useCollectItem(collectId, itemTitle, text, fig);
   useEffect(() => {
@@ -449,6 +543,7 @@ function Chart({
       <figcaption className="mb-1 flex flex-wrap items-center text-xs text-muted">
         <CollectButton id={collectId} title={itemTitle} kind="chart" />
         {series.title}
+        {series.caption && <InfoButton open={info} onToggle={() => setInfo(!info)} what="this chart" />}
         <span className="ml-3">
           {series.lines.filter((l) => l.label && !l.hidden).map((l) => (
             <span key={l.label} className="mr-3">
@@ -462,7 +557,8 @@ function Chart({
         <svg />
         <div className="plot-labels" />
       </div>
-      {series.caption && <p className="mt-0.5 text-xs text-muted">{series.caption}</p>}
+      {series.summary && <p className="mt-0.5 text-xs text-muted">{series.summary}</p>}
+      {series.caption && <InfoNote open={info}>{series.caption}</InfoNote>}
     </figure>
   );
 }
