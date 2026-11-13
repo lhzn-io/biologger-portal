@@ -162,6 +162,7 @@ def _update_catalog(catalog: Catalog, pairs: list[tuple[str, str]]) -> None:
     with catalog.tx() as conn:
         for old, new in pairs:
             conn.execute("UPDATE file SET path=? WHERE path=?", (new, old))
+            conn.execute("UPDATE validation_run SET file_path=? WHERE file_path=?", (new, old))
 
 
 def _remove_empty_dirs(root: Path, paths: list[str]) -> None:

@@ -39,11 +39,20 @@ def test_plan_lists_moves_without_moving(datasets: Path) -> None:
 
 def test_apply_moves_updates_catalog_and_reverts(datasets: Path) -> None:
     cat = catalog_for(datasets)
+    with cat.tx() as conn:
+        conn.execute(
+            "INSERT INTO validation_run (file_path, mode, status, tool_version, created_utc) "
+            "VALUES ('RED900_20220101-standard.csv', 'light', 'passed', 't', 'now')"
+        )
     plan_path, _ = write_plan(cat, datasets)
     record = apply(cat, datasets, plan_path)
     assert (datasets / "RED900_20220101/standard/RED900_20220101-standard.csv").is_file()
     assert not (datasets / "WhaleShark-RED900_20250723_19A0900").exists()  # emptied folder removed
     assert cat.one("SELECT 1 FROM file WHERE path='19A0900_20250723/raw/19A0900_20250723_TDR.csv'")
+    # Validation runs follow their files to the new paths.
+    assert cat.one("SELECT file_path FROM validation_run WHERE tool_version='t'") == {
+        "file_path": "RED900_20220101/standard/RED900_20220101-standard.csv"
+    }
     # A rescan finds every file at its new path: nothing new, nothing missing.
     report = scan(cat, datasets, hash_files=False)
     assert report.added == 0 and report.missing == 0

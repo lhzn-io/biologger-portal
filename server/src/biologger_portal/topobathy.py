@@ -94,6 +94,16 @@ class TopobathyProxy:
         self._client.close()
 
     def dem(self, dataset: str, product: str, bbox: str | None, max_dim: int | None) -> Cached:
+        url = self._dem_url(dataset, product, bbox, max_dim)
+        return self._get(url, PRODUCTS[product])
+
+    def cached(self, dataset: str, product: str, bbox: str | None, max_dim: int | None) -> Cached | None:
+        """The cached crop, or None; never contacts topobathykit (used by publish)."""
+        url = self._dem_url(dataset, product, bbox, max_dim)
+        body_path, meta_path = self._paths(url)
+        return self._read(body_path, meta_path)
+
+    def _dem_url(self, dataset: str, product: str, bbox: str | None, max_dim: int | None) -> str:
         if not DATASET_ID.fullmatch(dataset):
             raise TopobathyError(422, "invalid dataset id")
         if product not in PRODUCTS:
@@ -106,13 +116,15 @@ class TopobathyProxy:
                 raise TopobathyError(422, "max_dim must be 64 to 4096")
             params["max_dim"] = str(max_dim)
         path = f"/api/v1/dem/datasets/{dataset}/{product}"
-        return self._get(path, params, PRODUCTS[product])
+        return path + ("?" + urlencode(sorted(params.items())) if params else "")
 
-    def _get(self, path: str, params: dict[str, str], content_type: str) -> Cached:
-        url = path + ("?" + urlencode(sorted(params.items())) if params else "")
+    def _paths(self, url: str) -> tuple[Path, Path]:
         key = hashlib.sha256(url.encode()).hexdigest()[:32]
-        body_path = self.cache_dir / f"{key}.bin"
-        meta_path = self.cache_dir / f"{key}.json"
+        return self.cache_dir / f"{key}.bin", self.cache_dir / f"{key}.json"
+
+    def _get(self, url: str, content_type: str) -> Cached:
+        body_path, meta_path = self._paths(url)
+        key = body_path.stem
         hit = self._read(body_path, meta_path)
         if hit:
             return hit

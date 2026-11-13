@@ -11,7 +11,7 @@ from pathlib import Path
 
 import uvicorn
 
-from . import layout
+from . import layout, publish
 from .db import Catalog
 from .importers import import_all
 from .jobs import Jobs
@@ -38,6 +38,10 @@ def main(argv: list[str] | None = None) -> None:
     lay.add_argument(
         "file", nargs="?", help="apply: the plan (default .portal/layout-plan.json); revert: a moves record"
     )
+    pub = sub.add_parser(
+        "publish", help="Write the published snapshot (reviewed tracks, catalog) as static files"
+    )
+    pub.add_argument("--out", help="Output folder (default .portal/publish)")
     args = parser.parse_args(argv)
 
     if args.command == "serve":
@@ -73,6 +77,17 @@ def main(argv: list[str] | None = None) -> None:
             run = catalog.one("SELECT * FROM validation_run WHERE id=?", (run_id,))
             assert run is not None
             print(json.dumps({**run, "results": json.loads(run["results"])}, indent=2))
+        elif args.command == "publish":
+            out = Path(args.out) if args.out else settings.portal_dir / "publish"
+            snap = publish.publish(
+                catalog, settings.datasets_root, out, topobathy, settings.topobathy_max_dim
+            )
+            m = snap.manifest
+            size = sum(f["bytes"] for f in m["files"].values())
+            print(
+                f"{m['deployments']} deployments, {len(m['tracks'])} tracks, {len(m['files'])} files "
+                f"({size / 1e6:.1f} MB) in {out}; content {m['content_sha256'][:12]}"
+            )
         elif args.command == "layout":
             root = settings.datasets_root
             if args.action == "plan":
