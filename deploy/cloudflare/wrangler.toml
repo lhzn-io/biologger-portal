@@ -1,0 +1,16 @@
+# The published viewer: the web app (built with VITE_PUBLISHED=1) plus the snapshot under /data/v1/, served as
+# Workers static assets. No Worker code runs; Cloudflare Access in front of the custom domain decides who reads.
+# The Cloudflare account comes from CLOUDFLARE_ACCOUNT_ID (publish.sh reads it from ~/.config/biologger-portal/env).
+name = "whoi-mpg-portal"
+compatibility_date = "2026-10-01"
+workers_dev = false # the custom domain is the only address, so Access always applies
+preview_urls = false
+
+# Cloudflare creates and manages the DNS record for a custom domain; no other record may hold the name.
+routes = [{ pattern = "whoi-mpg.lhzn.io", custom_domain = true }]
+
+[assets]
+# publish.sh assembles this folder: the published build, data/v1/ and _headers.
+directory = "../../web/dist-published"
+# Client-side routes (/deployments/<id>, /matrix) have no file of their own: serve index.html.
+not_found_handling = "single-page-application"
