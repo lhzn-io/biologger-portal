@@ -5,6 +5,8 @@
  * the same equirectangular conversion biologger-sim uses (core/georef.py, R = 6371000 m).
  */
 
+import { resolve } from "../lib/mode";
+
 export const EARTH_RADIUS_M = 6371000;
 const D2R = Math.PI / 180;
 
@@ -101,7 +103,7 @@ export function parseTrack(manifest: TrackManifest, buffer: ArrayBuffer): Track 
 
 export async function loadTrack(depId: string, runId: string): Promise<Track> {
   const base = `/tracks/${encodeURIComponent(depId)}/${encodeURIComponent(runId)}`;
-  const [mRes, dRes] = await Promise.all([fetch(`${base}/track.json`), fetch(`${base}/track.f32`)]);
+  const [mRes, dRes] = await Promise.all([fetch(resolve(`${base}/track.json`)), fetch(resolve(`${base}/track.f32`))]);
   if (!mRes.ok || !dRes.ok) throw new Error(`track bundle not available (${mRes.status}, ${dRes.status})`);
   const manifest = (await mRes.json()) as TrackManifest;
   const buffer = await dRes.arrayBuffer();

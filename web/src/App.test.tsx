@@ -84,3 +84,34 @@ describe("App", () => {
     expect(await screen.findByText(/can read the catalog but not register files/)).toBeTruthy();
   });
 });
+
+describe("App, published", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("reads the snapshot, shows its date, and leaves out registration and identity", async () => {
+    vi.stubEnv("VITE_PUBLISHED", "1");
+    stubApi({
+      "/data/v1/snapshot.json": {
+        schema: "portal-snapshot-v1", published_utc: "2026-11-12T18:04:05Z", portal_version: "0.1.0",
+        content_sha256: "9ee6beee1e6c00", deployments: 2,
+      },
+      "/data/v1/deployments.json": DEPLOYMENTS,
+      "/data/v1/tracks.json": [],
+    });
+    renderAt("/");
+    expect(await screen.findByText("snapshot 2026-11-12 18:04 UTC")).toBeTruthy();
+    expect(await screen.findByText("Files catalogued")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Register" })).toBeNull();
+    expect(screen.queryByText(/read only/)).toBeNull();
+    const urls = vi.mocked(fetch).mock.calls.map((c) => String(c[0]));
+    expect(urls.length).toBeGreaterThan(0);
+    expect(urls.every((u) => u.startsWith("/data/v1/"))).toBe(true);
+  });
+
+  it("points registration at the hub", async () => {
+    vi.stubEnv("VITE_PUBLISHED", "1");
+    stubApi();
+    renderAt("/register");
+    expect(await screen.findByText(/happen on the hub, on the lab VPN/)).toBeTruthy();
+  });
+});

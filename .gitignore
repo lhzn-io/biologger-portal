@@ -1,6 +1,7 @@
 # Dependencies and builds
 node_modules/
 dist/
+dist-published/
 .venv/
 __pycache__/
 *.py[cod]

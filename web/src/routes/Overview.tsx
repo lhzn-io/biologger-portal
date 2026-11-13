@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ErrorNote, Loading, Panel } from "../components/ui";
 import { bytes, TRACK_COLORS } from "../lib/format";
+import { isPublished } from "../lib/mode";
 import { useDeployments, useTracks } from "../lib/queries";
 import { loadDemFrom } from "../viewer/dem";
 
@@ -32,8 +33,8 @@ export default function Overview() {
         {[
           ["Deployments", String(list.length)],
           ["Species", String(species.size)],
-          ["Files on the server", String(files)],
-          ["Data on the server", bytes(size)],
+          ["Files catalogued", String(files)],
+          ["Data catalogued", bytes(size)],
         ].map(([label, value]) => (
           <Panel key={label}>
             <p className="text-xs text-muted">{label}</p>
@@ -44,7 +45,9 @@ export default function Overview() {
       {hasTracks && (
         <Panel title="All tracks">
           {dem.isLoading ? (
-            <p className="text-sm text-muted">Fetching topobathymetry (the first view can take up to a minute)...</p>
+            <p className="text-sm text-muted">
+              {isPublished() ? "Loading topobathymetry..." : "Fetching topobathymetry (the first view can take up to a minute)..."}
+            </p>
           ) : (
             <Suspense fallback={<p className="text-sm text-muted">Loading the map...</p>}>
               <OverviewMap tracks={tracks.data!} dem={dem.data ?? null} />

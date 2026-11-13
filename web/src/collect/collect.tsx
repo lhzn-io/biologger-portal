@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { mountCollect } from "@lhzn-io/collect";
 import "@lhzn-io/collect/collect.css";
+import { isPublished } from "../lib/mode";
 import { buildPrompt } from "./prompt";
 import { elementFor, promptSettings, register, titleFor } from "./registry";
 
@@ -62,22 +63,24 @@ export function useCollectItem(id: string, title: string, text: () => string, el
   );
 }
 
-/** The header's "Collect" button and the toggle for people's names in prompts. */
+/** The header's "Collect" button and, on the hub, the toggle for people's names in prompts (the snapshot has none). */
 export function CollectControls() {
   const [people, setPeople] = useState(promptSettings.includePeople);
   return (
     <span className="flex items-center gap-3 text-xs text-muted">
-      <label className="flex items-center gap-1" title="Deployment and recovery team names stay out of prompts unless included">
-        <input
-          type="checkbox"
-          checked={people}
-          onChange={(e) => {
-            promptSettings.includePeople = e.target.checked;
-            setPeople(e.target.checked);
-          }}
-        />
-        names in prompts
-      </label>
+      {!isPublished() && (
+        <label className="flex items-center gap-1" title="Deployment and recovery team names stay out of prompts unless included">
+          <input
+            type="checkbox"
+            checked={people}
+            onChange={(e) => {
+              promptSettings.includePeople = e.target.checked;
+              setPeople(e.target.checked);
+            }}
+          />
+          names in prompts
+        </label>
+      )}
       <button className="collect-open" id="collect-open" type="button" aria-controls="collect-tray" aria-expanded="false">
         Collect<span id="collect-count" />
       </button>

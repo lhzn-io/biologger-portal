@@ -1,5 +1,7 @@
 /** Typed fetch helpers for the portal API (same origin; the dev server proxies /api to the server). */
 
+import { isPublished, resolve } from "./mode";
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -21,12 +23,13 @@ async function errorFrom(res: Response, path: string): Promise<ApiError> {
 }
 
 export async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, { ...init, headers: { Accept: "application/json", ...init?.headers } });
+  const res = await fetch(resolve(path), { ...init, headers: { Accept: "application/json", ...init?.headers } });
   if (!res.ok) throw await errorFrom(res, path);
   return (await res.json()) as T;
 }
 
 export function sendJson<T>(path: string, method: "POST" | "PATCH" | "PUT", body: unknown): Promise<T> {
+  if (isPublished()) return Promise.reject(new ApiError(405, "the published viewer is read only; changes are made on the hub"));
   return getJson<T>(path, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 }
 

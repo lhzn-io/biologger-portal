@@ -4,6 +4,8 @@
  * NaN marks missing cells. meta gives the grid size and bounds [west, south, east, north] in degrees.
  */
 
+import { resolve } from "../lib/mode";
+
 export interface DemMeta {
   width: number;
   height: number;
@@ -36,10 +38,10 @@ export function loadDem(depId: string, runId: string): Promise<Dem> {
 
 /** Loads the crop a terrain endpoint names (a track's, or the overview's at /api/terrain/overview). */
 export async function loadDemFrom(terrainUrl: string): Promise<Dem> {
-  const tRes = await fetch(terrainUrl);
+  const tRes = await fetch(resolve(terrainUrl));
   if (!tRes.ok) throw new Error(((await tRes.json().catch(() => ({}))) as { detail?: string }).detail ?? `terrain ${tRes.status}`);
   const terrain = (await tRes.json()) as Terrain;
-  const [mRes, eRes] = await Promise.all([fetch(terrain.meta_url), fetch(terrain.elevation_url)]);
+  const [mRes, eRes] = await Promise.all([fetch(resolve(terrain.meta_url)), fetch(resolve(terrain.elevation_url))]);
   if (!mRes.ok || !eRes.ok) {
     const detail = !mRes.ok ? await mRes.text() : await eRes.text();
     throw new Error(`topobathymetry unavailable: ${detail.slice(0, 200)}`);

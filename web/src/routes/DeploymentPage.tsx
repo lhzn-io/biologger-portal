@@ -7,6 +7,7 @@ import CollectPanel from "../collect/CollectPanel";
 import { deploymentText, filesText } from "../collect/texts";
 import { sendJson } from "../lib/api";
 import { bytes, coord, duration, KIND_LABELS, utc } from "../lib/format";
+import { isPublished } from "../lib/mode";
 import { useDeployment, useMe } from "../lib/queries";
 import type { DeploymentDetail } from "../lib/types";
 
@@ -25,6 +26,10 @@ const GROUPS: { title: string; fields: string[] }[] = [
   { title: "Package", fields: ["package_placement", "package_orientation", "attachment_method"] },
   { title: "People and notes", fields: ["deployment_team", "recovery_team", "resulting_paper(s)", "short_note", "notes", "current_link"] },
 ];
+
+// People's names stay on the hub; the published snapshot leaves these out (server metadata.PERSON_FIELDS).
+const PERSON_FIELDS = new Set(["deployment_team", "recovery_team"]);
+const shownFields = (fields: string[]) => (isPublished() ? fields.filter((f) => !PERSON_FIELDS.has(f)) : fields);
 
 export default function DeploymentPage() {
   const id = decodeURIComponent(useParams().id ?? "");
@@ -215,7 +220,7 @@ function Metadata({ data, editor }: { data: DeploymentDetail; editor: boolean })
           <fieldset key={g.title}>
             <legend className="mb-1 text-xs font-semibold text-muted uppercase">{g.title}</legend>
             <dl className="space-y-1 text-sm">
-              {g.fields.map((f) => (
+              {shownFields(g.fields).map((f) => (
                 <div key={f} className="grid grid-cols-[11rem_1fr] items-center gap-2">
                   <dt className="font-mono text-xs text-muted">{f}</dt>
                   <dd>

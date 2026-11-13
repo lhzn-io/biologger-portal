@@ -1,8 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { getJson } from "./api";
+import { isPublished } from "./mode";
 import type { DeploymentDetail, DeploymentSummary, Matrix, Me, TrackRow, ValidationRun } from "./types";
 
-export const useMe = () => useQuery({ queryKey: ["me"], queryFn: () => getJson<Me>("/api/me") });
+/** The signed-in user. The published viewer has no identity of its own (Cloudflare Access signs people in) and never edits. */
+export const useMe = () =>
+  useQuery({
+    queryKey: ["me"],
+    queryFn: () => (isPublished() ? Promise.resolve<Me>({ email: "", editor: false }) : getJson<Me>("/api/me")),
+  });
 
 export const useDeployments = () =>
   useQuery({ queryKey: ["deployments"], queryFn: () => getJson<DeploymentSummary[]>("/api/deployments") });
