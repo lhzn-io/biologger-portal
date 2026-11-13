@@ -19,7 +19,7 @@ export interface VantageOptions {
   maxPolarAngle?: number;
   keys?: boolean | "focus";
   gamepad?: boolean;
-  link?: boolean;
+  link?: boolean | { app?: { read?: (params: URLSearchParams) => void; write?: (params: URLSearchParams) => void } };
 }
 
 export declare class Vantage extends EventTarget {
@@ -32,6 +32,10 @@ export declare class Vantage extends EventTarget {
   saveHome(): void;
   home(animate?: boolean): void;
   rescaleVertical(prev: number, next: number, anchorY: number): number;
+  view(): Record<string, number>;
+  readLink(search?: string): unknown;
+  applyLink(animate?: boolean): boolean;
+  writeLink(): boolean;
   dispose(): void;
 }
 

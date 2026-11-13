@@ -46,6 +46,8 @@ export interface SceneView {
   home(): void;
   /** Glide the orbit point to the animal at sample `i`, keeping the current viewing distance and angle. */
   centerOn(i: number): void;
+  /** Write the camera and the page's parameters to the URL now (the camera's own moves write it as they settle). */
+  writeLink(): void;
 }
 
 /** A wheel event this long after the previous one starts a new zoom gesture. */
@@ -60,6 +62,7 @@ export default function Scene3D({
   follow = false,
   species,
   viewRef,
+  linkWrite,
 }: {
   track: Track;
   dem: Dem | null;
@@ -72,6 +75,8 @@ export default function Scene3D({
   /** Scientific name, to draw the animal with its species model where one is packed. */
   species?: string;
   viewRef?: RefObject<SceneView | null>;
+  /** Adds the page's parameters whenever the camera is written to the URL; with it, the URL keeps the view. */
+  linkWrite?: RefObject<((params: URLSearchParams) => void) | null>;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const state = useRef<SceneState | null>(null);
@@ -205,10 +210,17 @@ export default function Scene3D({
       minDistance: 0.05, // 5 m, close enough to see the animal at true size
       maxPolarAngle: Math.PI * 0.85,
       keys: "focus",
+      link: linkWrite ? { app: { write: (p: URLSearchParams) => linkWrite.current?.(p) } } : false,
     });
     const bounds = new THREE.Box3().setFromObject(line);
     nav.fitBox(bounds, { bearingDeg: 20, elevationDeg: 35, factor: 1.1 });
     nav.saveHome();
+    // A shared link opens on its camera; Home still returns to the fitted view. The scene is rebuilt when the
+    // terrain arrives, and the URL then holds the camera as the viewer left it, so the view carries over.
+    if (linkWrite) {
+      nav.readLink();
+      nav.applyLink();
+    }
 
     const resize = () => {
       const w = el.clientWidth || 600;
@@ -269,6 +281,9 @@ export default function Scene3D({
           void c.dollyTo(Math.max(c.minDistance, st.trueLen / perPixel(1) / FOCUS_PX), true);
         },
         home: () => nav.home(true),
+        writeLink: () => {
+          nav.writeLink();
+        },
         centerOn: (i: number) => {
           const c = nav.controls;
           const x = track.east[i]! * S;

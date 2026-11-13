@@ -11,7 +11,8 @@ import { Credits, Legend } from "../viewer/Legend";
 import { fmt, readoutAt } from "../viewer/readout";
 import Scene3D, { type SceneView } from "../viewer/Scene3D";
 import SceneControls from "../viewer/SceneControls";
-import { loadTrack } from "../viewer/track";
+import { readPageLink, writePageLink } from "../viewer/link";
+import { indexAt, loadTrack, timeOf } from "../viewer/track";
 
 const SPEEDS = [60, 600, 3600]; // seconds of track per second of playback
 
@@ -23,17 +24,31 @@ export default function TrackPage() {
   // The DEM crop can take up to a minute the first time topobathykit builds it; the track shows meanwhile.
   const dem = useQuery({ queryKey: ["dem", depId, runId], queryFn: () => loadDem(depId, runId), staleTime: Infinity, retry: 1 });
   const tracks = useTracks();
-  const [cursor, setCursor] = useState(0);
-  const [exag, setExag] = useState(5);
+  // A shared link (see viewer/link.ts) sets the opening state; the camera in it is vantagekit's.
+  const [initial] = useState(() => readPageLink(location.search));
+  // Null until the viewer moves the cursor: until then it sits at the link's time, or the start.
+  const [cursorSet, setCursor] = useState<number | null>(null);
+  const [exag, setExag] = useState(initial.exaggeration ?? 5);
   const [speed, setSpeed] = useState<number | null>(null);
-  const [follow, setFollow] = useState(false);
-  const [basis, setBasis] = useState<DepthScale["basis"]>("species");
+  const [follow, setFollow] = useState(initial.follow ?? false);
+  const [basis, setBasis] = useState<DepthScale["basis"]>(initial.basis ?? "species");
   const view = useRef<SceneView | null>(null);
   const onCursor = useCallback((i: number) => setCursor(i), []);
   // A click on a chart brings the 3D view to the animal at that time, at the distance the viewer had chosen.
   const onPick = useCallback((i: number) => view.current?.centerOn(i), []);
 
   const tr = track.data;
+  const cursor = cursorSet ?? (tr && initial.time != null ? indexAt(tr, initial.time) : 0);
+  // The URL follows the view: the camera is written as it settles, the rest here once changes pause (playback
+  // writes when it stops), so the address bar can be copied to share this moment and view.
+  const linkWrite = useRef<((p: URLSearchParams) => void) | null>(null);
+  useEffect(() => {
+    if (!tr) return;
+    const state = { time: timeOf(tr, cursor), exaggeration: exag, basis, follow };
+    linkWrite.current = (p) => writePageLink(p, state);
+    const id = setTimeout(() => view.current?.writeLink(), 400);
+    return () => clearTimeout(id);
+  }, [tr, cursor, exag, basis, follow]);
   // Animal depth colors: by default one scale for every track of the species (deepest of them, rounded up),
   // so a color means the same depth on each of their pages; "this track only" fits the track itself.
   const trackList = tracks.data;
@@ -59,7 +74,8 @@ export default function TrackPage() {
     const step = (now: number) => {
       const dt = (now - last) / 1000;
       last = now;
-      setCursor((c) => {
+      setCursor((prev) => {
+        const c = prev ?? 0; // Play and Speed set the cursor first
         const next = c + Math.max(1, Math.round(dt * speed * tr.manifest.rate_hz));
         if (next >= tr.count - 1) {
           setSpeed(null);
@@ -108,12 +124,18 @@ export default function TrackPage() {
           <Item label="From start fix" value={`${fmt(r.north_m / 1000, 2)} km N, ${fmt(r.east_m / 1000, 2)} km E`} />
         </dl>
         <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
-          <Button kind="plain" onClick={() => setSpeed(speed == null ? SPEEDS[0]! : null)}>
+          <Button kind="plain" onClick={() => {
+            setCursor(cursor);
+            setSpeed(speed == null ? SPEEDS[0]! : null);
+          }}>
             {speed == null ? "Play" : "Pause"}
           </Button>
           <label className="flex items-center gap-1 text-muted">
             Speed
-            <select className="rounded border border-line bg-surface px-1" value={speed ?? SPEEDS[0]} onChange={(e) => setSpeed(Number(e.target.value))}>
+            <select className="rounded border border-line bg-surface px-1" value={speed ?? SPEEDS[0]} onChange={(e) => {
+              setCursor(cursor);
+              setSpeed(Number(e.target.value));
+            }}>
               {SPEEDS.map((s) => (
                 <option key={s} value={s}>
                   {s}x
@@ -133,7 +155,7 @@ export default function TrackPage() {
 
       <CollectPanel id={`${key}:scene`} title={`3D view, ${depId}`} text={() => mapText(tr, dem.data ?? null, exag, scale, species)}>
         <div className="relative h-[36rem]">
-          <Scene3D track={tr} dem={dem.data ?? null} cursor={cursor} exaggeration={exag} depthMax={scale.max} follow={follow} species={species} viewRef={view} />
+          <Scene3D track={tr} dem={dem.data ?? null} cursor={cursor} exaggeration={exag} depthMax={scale.max} follow={follow} species={species} viewRef={view} linkWrite={linkWrite} />
           <Legend depth={scale} species={species} />
           <SceneControls
             onFocus={() => view.current?.focusAnimal()}
