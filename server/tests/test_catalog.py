@@ -1,9 +1,12 @@
 # Copyright (c) 2026 Long Horizon Observatory
 # Licensed under the Apache License, Version 2.0. See LICENSE file for details.
 
+import shutil
 from pathlib import Path
 
-from biologger_portal.db import Catalog, loads
+from conftest import write_track
+
+from biologger_portal.db import Catalog, loads, utcnow
 from biologger_portal.importers import import_all
 from biologger_portal.scanner import classify, scan
 
@@ -90,3 +93,28 @@ def test_scan_attributes_hashes_once_and_marks_missing(datasets: Path) -> None:
     third = scan(cat, datasets)
     assert third.missing == 1
     assert cat.one("SELECT missing FROM file WHERE path='stray.bin'") == {"missing": 1}
+
+
+def test_reexport_carries_the_review_to_the_new_run(datasets: Path) -> None:
+    cat = Catalog(datasets / ".portal" / "catalog.db")
+    import_all(cat, datasets, actor="test")
+    dep = "WHOI.900_20250101"
+    assert scan(cat, datasets).reviews_carried == []  # never reviewed: nothing to carry
+    with cat.tx() as conn:
+        conn.execute("UPDATE track SET published=1 WHERE run_id='run-1'")
+        conn.execute(
+            """INSERT INTO audit (at_utc, actor, entity, entity_id, field, old_value, new_value)
+               VALUES (?, 'editor@example.org', 'deployment', ?, 'published_track', NULL, 'run-1')""",
+            (utcnow(), dep),
+        )
+    tracks = datasets / dep / "tracks"
+    shutil.rmtree(tracks / "run-1")
+    write_track(tracks / "run-2", dep, "run-2")
+    report = scan(cat, datasets)
+    assert report.reviews_carried == [dep]
+    assert cat.query("SELECT run_id, published FROM track") == [{"run_id": "run-2", "published": 1}]
+    audit = cat.one(
+        "SELECT actor, old_value, new_value FROM audit WHERE field='published_track' ORDER BY id DESC"
+    )
+    assert audit == {"actor": "scan", "old_value": "run-1", "new_value": "run-2"}
+    assert scan(cat, datasets).reviews_carried == []  # settled

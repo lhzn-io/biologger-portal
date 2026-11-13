@@ -50,6 +50,7 @@ class ScanReport:
     missing: int = 0
     hashed_bytes: int = 0
     tracks: int = 0
+    reviews_carried: list[str] = field(default_factory=list)
     unattributed: list[str] = field(default_factory=list)
 
 
@@ -183,7 +184,48 @@ def scan(catalog: Catalog, root: Path, *, hash_files: bool = True) -> ScanReport
             conn.executemany("UPDATE file SET missing=1 WHERE path=?", [(p,) for p in gone])
             conn.executemany("DELETE FROM track WHERE path=?", [(p.rsplit("/", 1)[0],) for p in gone])
     report.missing = len(gone)
+    report.reviews_carried = carry_reviews(catalog, now)
     return report
+
+
+def carry_reviews(catalog: Catalog, now: str) -> list[str]:
+    """Moves a deployment's review to its newest run when the reviewed run's folder is gone.
+
+    Re-exporting a track writes a new run folder and removes the old one, which would otherwise leave
+    the deployment with no published track (and the published viewer with nothing to draw). The audit
+    keeps the last reviewed run; when it is no longer in the catalog and the deployment has no
+    published run, the newest run (run IDs start with their timestamp) takes its place, and the move
+    is audited with the actor ``scan``. A deployment that never had a reviewed run is left alone.
+    Returns the deployments changed.
+    """
+    carried = []
+    last = catalog.query(
+        """SELECT a.entity_id AS dep, a.new_value AS run FROM audit a
+           WHERE a.field = 'published_track' AND a.id = (
+               SELECT MAX(b.id) FROM audit b WHERE b.field = 'published_track' AND b.entity_id = a.entity_id)"""
+    )
+    for row in last:
+        dep, old_run = row["dep"], row["run"]
+        if catalog.one("SELECT 1 FROM track WHERE deployment_id=? AND published=1", (dep,)):
+            continue
+        if catalog.one("SELECT 1 FROM track WHERE deployment_id=? AND run_id=?", (dep, old_run)):
+            continue  # the reviewed run is still here; nothing was replaced
+        newest = catalog.one(
+            "SELECT run_id FROM track WHERE deployment_id=? ORDER BY run_id DESC LIMIT 1", (dep,)
+        )
+        if newest is None:
+            continue
+        with catalog.tx() as conn:
+            conn.execute(
+                "UPDATE track SET published = (run_id = ?) WHERE deployment_id=?", (newest["run_id"], dep)
+            )
+            conn.execute(
+                """INSERT INTO audit (at_utc, actor, entity, entity_id, field, old_value, new_value)
+                   VALUES (?, 'scan', 'deployment', ?, 'published_track', ?, ?)""",
+                (now, dep, old_run, newest["run_id"]),
+            )
+        carried.append(dep)
+    return carried
 
 
 def _index_track(catalog: Catalog, manifest_path: Path, rel: str, dep: str, now: str) -> None:
