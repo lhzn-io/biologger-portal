@@ -31,11 +31,11 @@ export default function TrackPage() {
   const view = useRef<SceneView | null>(null);
   const onCursor = useCallback((i: number) => setCursor(i), []);
   // A click on a chart brings the 3D view to the animal at that time, at the distance the viewer had chosen.
-  const onPick = useCallback((i: number) => view.current?.centreOn(i), []);
+  const onPick = useCallback((i: number) => view.current?.centerOn(i), []);
 
   const tr = track.data;
-  // Animal depth colours: by default one scale for every track of the species (deepest of them, rounded up),
-  // so a colour means the same depth on each of their pages; "this track only" fits the track itself.
+  // Animal depth colors: by default one scale for every track of the species (deepest of them, rounded up),
+  // so a color means the same depth on each of their pages; "this track only" fits the track itself.
   const trackList = tracks.data;
   const scales = useMemo(() => {
     let deepest = 0;

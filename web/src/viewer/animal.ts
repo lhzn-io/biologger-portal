@@ -1,5 +1,5 @@
 /**
- * Animal models for the 3D view. They come from paid packs whose licence allows them only built into the
+ * Animal models for the 3D view. They come from paid packs whose license allows them only built into the
  * product, so the publish step packs them into this viewer's own encrypted format (deploy/models/pack-models.mjs)
  * under a key compiled into the build. Without the key, the packed files, or WebCrypto (which needs https or
  * localhost), the view falls back to a plain marker.

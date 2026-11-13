@@ -45,7 +45,7 @@ export interface SceneView {
   /** Return to the view the scene opened with. */
   home(): void;
   /** Glide the orbit point to the animal at sample `i`, keeping the current viewing distance and angle. */
-  centreOn(i: number): void;
+  centerOn(i: number): void;
 }
 
 /** A wheel event this long after the previous one starts a new zoom gesture. */
@@ -65,7 +65,7 @@ export default function Scene3D({
   dem: Dem | null;
   cursor: number;
   exaggeration: number;
-  /** Depth (m) the track's colour ramp reaches at its deep end. */
+  /** Depth (m) the track's color ramp reaches at its deep end. */
   depthMax: number;
   /** Hold the orbit point on the animal as the cursor moves (orbit and zoom only; no pan). */
   follow?: boolean;
@@ -269,7 +269,7 @@ export default function Scene3D({
           void c.dollyTo(Math.max(c.minDistance, st.trueLen / perPixel(1) / FOCUS_PX), true);
         },
         home: () => nav.home(true),
-        centreOn: (i: number) => {
+        centerOn: (i: number) => {
           const c = nav.controls;
           const x = track.east[i]! * S;
           const y = -track.depth[i]! * st.exag * S;
@@ -284,7 +284,7 @@ export default function Scene3D({
       st.frame = requestAnimationFrame(loop);
       nav.update(clock.getDelta());
       // The animal is drawn at its true length when that is at least MARKER_PX on screen, and at MARKER_PX when
-      // it would be smaller, so it stays visible from kilometres away.
+      // it would be smaller, so it stays visible from kilometers away.
       st.marker.scale.setScalar(Math.max(st.trueLen, MARKER_PX * perPixel(camera.position.distanceTo(st.marker.position))));
       renderer.render(scene, camera);
     };
@@ -370,7 +370,7 @@ export default function Scene3D({
     };
   }, [track, dem, species]);
 
-  // A new colour scale recolours the track in place (the camera stays).
+  // A new color scale recolors the track in place (the camera stays).
   useEffect(() => {
     const st = state.current;
     if (st) (st.line.geometry as LineGeometry).setColors(lineColors(track, st.lineIdx, depthMax));

@@ -6,8 +6,8 @@ type Rgb = [number, number, number];
 const css = ([r, g, b]: Rgb) => `rgb(${Math.round(r * 255)} ${Math.round(g * 255)} ${Math.round(b * 255)})`;
 
 /**
- * A horizontal colour bar for a value range. With `open`, the last tick reads "N+" because colours saturate
- * beyond it; a scale fitted to the data it colours has no values past its end.
+ * A horizontal color bar for a value range. With `open`, the last tick reads "N+" because colors saturate
+ * beyond it; a scale fitted to the data it colors has no values past its end.
  */
 function ColorBar({
   label,
@@ -50,7 +50,7 @@ function ColorBar({
 }
 
 /**
- * Colour keys for the terrain and, when a track is drawn by depth, the track (both in metres below the surface).
+ * Color keys for the terrain and, when a track is drawn by depth, the track (both in meters below the surface).
  * `depth` is the track's scale; `species` names whose tracks a species scale spans.
  */
 export function Legend({ depth, species }: { depth?: DepthScale | null; species?: string }) {

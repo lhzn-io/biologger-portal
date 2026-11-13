@@ -73,12 +73,12 @@ describe("track bundles", () => {
 });
 
 describe("DEM lookups", () => {
-  it("interpolates between cell centres and returns NaN outside", () => {
+  it("interpolates between cell centers and returns NaN outside", () => {
     const dem = {
       meta: { width: 2, height: 2, bounds: [0, 0, 2, 2], dx: 1, dy: 1 },
       grid: new Float32Array([-100, -200, -300, -400]), // north row first
     } as unknown as Dem;
-    expect(elevationAt(dem, 1.5, 0.5)).toBeCloseTo(-100); // centre of the north-west cell
+    expect(elevationAt(dem, 1.5, 0.5)).toBeCloseTo(-100); // center of the north-west cell
     expect(elevationAt(dem, 1, 1)).toBeCloseTo(-250); // middle of the four
     expect(Number.isNaN(elevationAt(dem, 5, 5))).toBe(true);
   });

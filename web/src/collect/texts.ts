@@ -127,7 +127,7 @@ export function mapText(
     ],
     ["vertical_exaggeration", exaggeration != null ? `${exaggeration}x` : ""],
     [
-      "colours",
+      "colors",
       `terrain by seafloor depth, light blue at 0 m to dark navy at 3000 m and deeper; track by the animal's depth, pale yellow at the surface to magenta at ${depth.max} m (a scale fitted to ${span}, rounded up)`,
     ],
   ]);
@@ -156,7 +156,7 @@ export function chartText(series: ChartSeries, track: Track, cursor: number): st
     ["cursor_utc", new Date(cursorT * 1000).toISOString()],
   ]);
   const body = series.lines
-    .filter((l) => l.label) // unlabelled lines are drawing aids
+    .filter((l) => l.label) // unlabeled lines are drawing aids
     .map((l) => {
       const s = stats(l.ys);
       const sign = series.id === "depth" ? -1 : 1; // the depth chart draws depth as a negative height

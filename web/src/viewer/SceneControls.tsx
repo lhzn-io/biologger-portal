@@ -5,7 +5,7 @@ const btn = "rounded border border-line bg-panel/90 px-2 py-0.5 text-muted hover
 
 /**
  * The 3D view's controls, top right: zoom to the animal and reset the view always shown, the rest (vertical
- * exaggeration, following the animal, the depth colour scale) behind "Controls".
+ * exaggeration, following the animal, the depth color scale) behind "Controls".
  */
 export default function SceneControls({
   onFocus,
@@ -68,7 +68,7 @@ export default function SceneControls({
             </span>
           </label>
           <fieldset className="space-y-1">
-            <legend className="mb-1">Animal depth colours</legend>
+            <legend className="mb-1">Animal depth colors</legend>
             <label className={`flex items-start gap-2 ${speciesScale ? "" : "opacity-50"}`}>
               <input
                 type="radio"

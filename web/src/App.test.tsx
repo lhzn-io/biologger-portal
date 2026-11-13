@@ -100,7 +100,7 @@ describe("App, published", () => {
     });
     renderAt("/");
     expect(await screen.findByText("snapshot 2026-11-12 18:04 UTC")).toBeTruthy();
-    expect(await screen.findByText("Files catalogued")).toBeTruthy();
+    expect(await screen.findByText("Files cataloged")).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Register" })).toBeNull();
     expect(screen.queryByText(/read only/)).toBeNull();
     const urls = vi.mocked(fetch).mock.calls.map((c) => String(c[0]));

@@ -1,6 +1,6 @@
 /** The topobathykit DEM crop behind both the 2D basemap and the 3D terrain.
  *
- * elevation.bin is Float32 (little-endian), row-major, row 0 at the north edge, metres positive up;
+ * elevation.bin is Float32 (little-endian), row-major, row 0 at the north edge, meters positive up;
  * NaN marks missing cells. meta gives the grid size and bounds [west, south, east, north] in degrees.
  */
 
@@ -52,7 +52,7 @@ export async function loadDemFrom(terrainUrl: string): Promise<Dem> {
   return { terrain, meta, grid };
 }
 
-/** Elevation (m, positive up) at a point, bilinear between cell centres; NaN outside or over missing cells. */
+/** Elevation (m, positive up) at a point, bilinear between cell centers; NaN outside or over missing cells. */
 export function elevationAt(dem: Dem, lat: number, lon: number): number {
   const { width, height, bounds } = dem.meta;
   const [w, s, e, n] = bounds;
@@ -73,7 +73,7 @@ export function elevationAt(dem: Dem, lat: number, lon: number): number {
   return (v00 * (1 - ax) + v10 * ax) * (1 - ay) + (v01 * (1 - ax) + v11 * ax) * ay;
 }
 
-/** The range the animal-depth colours span: 0 to `max` m, fitted to a species' tracks or to one track. */
+/** The range the animal-depth colors span: 0 to `max` m, fitted to a species' tracks or to one track. */
 export interface DepthScale {
   max: number;
   ticks: number[];
@@ -92,13 +92,13 @@ export function depthScale(deepest: number, basis: DepthScale["basis"]): DepthSc
   return { max, ticks: Array.from({ length: Math.round(max / step) + 1 }, (_, k) => k * step), basis };
 }
 
-/** Colour of the animal's depth (m, positive down) along a track: pale yellow at the surface to magenta at `max` m. */
+/** Color of the animal's depth (m, positive down) along a track: pale yellow at the surface to magenta at `max` m. */
 export function trackDepthColor(depth: number, max = 600): [number, number, number] {
   const t = Math.min(1, Math.max(0, depth / max));
   return [0.99 * (1 - t) + 0.75 * t, 0.88 * (1 - t) + 0.15 * t, 0.28 * (1 - t) + 0.83 * t];
 }
 
-/** Colour of an elevation (m): blues below sea level by depth, greens and browns above (topobathykit's ramp). */
+/** Color of an elevation (m): blues below sea level by depth, greens and browns above (topobathykit's ramp). */
 export function elevationColor(z: number): [number, number, number] {
   if (Number.isNaN(z)) return [0.35, 0.35, 0.38];
   if (z < 0) {

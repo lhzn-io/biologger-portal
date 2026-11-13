@@ -32,7 +32,7 @@ describe("solarElevation", () => {
 });
 
 describe("postureByDepth", () => {
-  it("summarises roll from upright per depth band and period", () => {
+  it("summarizes roll from upright per depth band and period", () => {
     const n = 200;
     const z = () => new Float32Array(n);
     const t0 = Date.UTC(2022, 7, 12, 16, 40) / 1000; // daytime throughout (200 s)

@@ -80,8 +80,8 @@ export default function Overview() {
             ["Deployments", String(rows.length)],
             ["Species", String(species.size)],
             ["Tracks", String(list.length)],
-            ["Files catalogued", String(files)],
-            ["Data catalogued", bytes(size)],
+            ["Files cataloged", String(files)],
+            ["Data cataloged", bytes(size)],
           ].map(([label, value]) => (
             <div key={label} className="flex items-baseline gap-2">
               <dt className="text-xs text-muted">{label}</dt>
@@ -95,7 +95,7 @@ export default function Overview() {
           <table className="w-full text-sm">
             <thead className="text-left text-xs text-muted">
               <tr>
-                <th className="w-6 py-2 pl-3" aria-label="Track colour" />
+                <th className="w-6 py-2 pl-3" aria-label="Track color" />
                 <th className="py-2 pr-4 font-normal">Deployment</th>
                 <th className="py-2 pr-4 font-normal">Species</th>
                 <th className="py-2 pr-4 font-normal">Release (UTC)</th>

@@ -6,9 +6,9 @@ export const METHODS = [
   "- Tracks are reconstructed by biologger-sim from the tag's accelerometer, magnetometer and depth sensor (dead reckoning). " +
     "Positions are observed only at the start and end fixes; in a fix_pinned track the dead-reckoned path is rotated and " +
     "scaled so it ends at the end fix (the heading correction and scale are given when known).",
-  "- Positions are metres north and east of the start fix, converted to latitude and longitude with an equirectangular " +
+  "- Positions are meters north and east of the start fix, converted to latitude and longitude with an equirectangular " +
     "approximation (Earth radius 6,371,000 m).",
-  "- Depths are metres below the surface, from the tag's pressure sensor. Seafloor depths are read from a fused " +
+  "- Depths are meters below the surface, from the tag's pressure sensor. Seafloor depths are read from a fused " +
     "topobathymetric grid (GEBCO 2025, GMRT multibeam, NOAA BlueTopo, NCEI BAG) at the reconstructed position, so they " +
     "inherit the position's uncertainty.",
   "- VeDBA is the vectorial dynamic body acceleration, in the unit given with it.",

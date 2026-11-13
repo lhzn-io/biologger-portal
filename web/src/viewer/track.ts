@@ -1,7 +1,7 @@
 /** Track bundles (track-bundle-v1, written by biologger-sim export-track): loading and lookups.
  *
  * track.f32 is little-endian Float32 in column blocks; track.json gives each column's byte offset.
- * Positions are metres north and east of the origin (the start fix); latitude and longitude come from
+ * Positions are meters north and east of the origin (the start fix); latitude and longitude come from
  * the same equirectangular conversion biologger-sim uses (core/georef.py, R = 6371000 m).
  */
 
