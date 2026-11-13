@@ -6,7 +6,7 @@ import CollectPanel from "../collect/CollectPanel";
 import { mapText, readoutText } from "../collect/texts";
 import Charts from "../viewer/Charts";
 import { loadDem } from "../viewer/dem";
-import Map2D from "../viewer/Map2D";
+import { Credits, Legend } from "../viewer/Legend";
 import { fmt, readoutAt } from "../viewer/readout";
 import Scene3D from "../viewer/Scene3D";
 import { loadTrack } from "../viewer/track";
@@ -78,6 +78,7 @@ export default function TrackPage() {
           <Item label="Pitch" value={`${fmt(r.pitch_deg)} deg`} />
           <Item label="Roll" value={`${fmt(r.roll_deg)} deg`} />
           <Item label={`VeDBA (${tr.units.vedba || "m/s^2"})`} value={fmt(r.vedba, 3)} />
+          {r.odba != null && <Item label={`ODBA (${tr.units.odba || tr.units.vedba || "m/s^2"})`} value={fmt(r.odba, 3)} />}
           <Item label="From start fix" value={`${fmt(r.north_m / 1000, 2)} km N, ${fmt(r.east_m / 1000, 2)} km E`} />
         </dl>
         <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
@@ -108,18 +109,13 @@ export default function TrackPage() {
         </div>
       </CollectPanel>
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        <CollectPanel id={`${key}:map`} title={`Plan view, ${depId}`} text={() => mapText(tr, dem.data ?? null)}>
-          <div className="h-[28rem]">
-            <Map2D track={tr} dem={dem.data ?? null} cursor={cursor} onPick={onCursor} />
-          </div>
-        </CollectPanel>
-        <CollectPanel id={`${key}:scene`} title={`3D view, ${depId}`} text={() => mapText(tr, dem.data ?? null, exag)}>
-          <div className="h-[28rem]">
-            <Scene3D track={tr} dem={dem.data ?? null} cursor={cursor} exaggeration={exag} />
-          </div>
-        </CollectPanel>
-      </div>
+      <CollectPanel id={`${key}:scene`} title={`3D view, ${depId}`} text={() => mapText(tr, dem.data ?? null, exag)}>
+        <div className="relative h-[36rem]">
+          <Scene3D track={tr} dem={dem.data ?? null} cursor={cursor} exaggeration={exag} />
+          <Legend track />
+          <Credits />
+        </div>
+      </CollectPanel>
 
       <Panel title="Along the track">
         <Charts track={tr} dem={dem.data ?? null} cursor={cursor} onCursor={onCursor} collectKey={key} />

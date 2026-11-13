@@ -39,6 +39,9 @@ export interface Track {
   pitch: Float32Array;
   roll: Float32Array;
   vedba: Float32Array;
+  /** Overall dynamic body acceleration (sum of the absolute dynamic axes), same units as VeDBA; null in bundles
+   * exported before biologger-sim wrote an "odba" column. */
+  odba: Float32Array | null;
   lat: Float64Array;
   lon: Float64Array;
   units: Record<string, string>;
@@ -95,6 +98,7 @@ export function parseTrack(manifest: TrackManifest, buffer: ArrayBuffer): Track 
     pitch: col("pitch_deg"),
     roll: col("roll_deg"),
     vedba: col("vedba"),
+    odba: manifest.columns.some((c) => c.name === "odba") ? col("odba") : null,
     lat,
     lon,
     units: Object.fromEntries(manifest.columns.map((c) => [c.name, c.unit ?? ""])),

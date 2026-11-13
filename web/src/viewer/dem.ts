@@ -73,6 +73,12 @@ export function elevationAt(dem: Dem, lat: number, lon: number): number {
   return (v00 * (1 - ax) + v10 * ax) * (1 - ay) + (v01 * (1 - ax) + v11 * ax) * ay;
 }
 
+/** Colour of the animal's depth (m, positive down) along a track: pale yellow at the surface to magenta at 600 m and below. */
+export function trackDepthColor(depth: number): [number, number, number] {
+  const t = Math.min(1, Math.max(0, depth / 600));
+  return [0.99 * (1 - t) + 0.75 * t, 0.88 * (1 - t) + 0.15 * t, 0.28 * (1 - t) + 0.83 * t];
+}
+
 /** Colour of an elevation (m): blues below sea level by depth, greens and browns above (topobathykit's ramp). */
 export function elevationColor(z: number): [number, number, number] {
   if (Number.isNaN(z)) return [0.35, 0.35, 0.38];

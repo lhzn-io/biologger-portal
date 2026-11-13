@@ -98,6 +98,7 @@ export function readoutText(track: Track, dem: Dem | null, cursor: number): stri
     ["pitch_deg", fmt(r.pitch_deg)],
     ["roll_deg", fmt(r.roll_deg)],
     [`vedba (${track.units.vedba || "m/s^2"})`, fmt(r.vedba, 3)],
+    [`odba (${track.units.odba || track.units.vedba || "m/s^2"})`, r.odba == null ? "not in this track bundle" : fmt(r.odba, 3)],
   ]);
 }
 
@@ -118,6 +119,10 @@ export function mapText(track: Track, dem: Dem | null, exaggeration?: number): s
         : "not loaded",
     ],
     ["vertical_exaggeration", exaggeration != null ? `${exaggeration}x` : ""],
+    [
+      "colours",
+      "terrain by seafloor depth, light blue at 0 m to dark navy at 3000 m and deeper; track by the animal's depth, pale yellow at the surface to magenta at 600 m and deeper",
+    ],
   ]);
 }
 

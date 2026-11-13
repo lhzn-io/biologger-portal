@@ -5,7 +5,7 @@ import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { createVantage, type Vantage } from "../vendor/vantagekit/vantagekit-three.js";
-import { elevationAt, elevationColor, type Dem } from "./dem";
+import { elevationAt, elevationColor, trackDepthColor, type Dem } from "./dem";
 import { EARTH_RADIUS_M, strideIndices, type Track } from "./track";
 
 /** Scene units are 100 m (vantagekit metersPerUnit), as in topobathykit's DEM viewer. */
@@ -29,11 +29,6 @@ interface SceneState {
   frame: number;
 }
 
-/** Depth colour along the track: pale yellow at the surface to magenta at 600 m and below. */
-function depthColor(depth: number): [number, number, number] {
-  const t = Math.min(1, Math.max(0, depth / 600));
-  return [0.99 * (1 - t) + 0.75 * t, 0.88 * (1 - t) + 0.15 * t, 0.28 * (1 - t) + 0.83 * t];
-}
 
 export default function Scene3D({
   track,
@@ -140,7 +135,7 @@ export default function Scene3D({
     const lineIdx = strideIndices(track.count, LINE_POINTS);
     const lineGeo = new LineGeometry();
     lineGeo.setPositions(linePositions(track, lineIdx, exag));
-    lineGeo.setColors(lineIdx.flatMap((i) => depthColor(track.depth[i]!)));
+    lineGeo.setColors(lineIdx.flatMap((i) => trackDepthColor(track.depth[i]!)));
     const lineMat = new LineMaterial({ vertexColors: true, linewidth: 2.5, worldUnits: false });
     const line = new Line2(lineGeo, lineMat);
     scene.add(line);

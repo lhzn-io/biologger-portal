@@ -15,6 +15,7 @@ export interface Readout {
   pitch_deg: number;
   roll_deg: number;
   vedba: number;
+  odba: number | null;
 }
 
 /** The values at one sample: what the page shows beside the cursor and what the prompt carries. */
@@ -38,6 +39,7 @@ export function readoutAt(track: Track, dem: Dem | null, i: number): Readout {
     pitch_deg: track.pitch[i]!,
     roll_deg: track.roll[i]!,
     vedba: track.vedba[i]!,
+    odba: track.odba ? track.odba[i]! : null,
   };
 }
 

@@ -30,6 +30,16 @@ describe("track bundles", () => {
     expect(tr.lat[0]).toBeCloseTo(35.534425, 9);
   });
 
+  it("reads an odba column when the bundle has one", () => {
+    const [m, buf] = bundle(3);
+    expect(parseTrack(m, buf).odba).toBeNull();
+    const withOdba = new Float32Array(9 * 3);
+    withOdba.set(new Float32Array(buf));
+    withOdba.set([0.5, 1.5, 2.5], 8 * 3);
+    m.columns = [...m.columns, { name: "odba", offset_bytes: 8 * 3 * 4 }];
+    expect(Array.from(parseTrack(m, withOdba.buffer).odba!)).toEqual([0.5, 1.5, 2.5]);
+  });
+
   it("matches biologger-sim's equirectangular georeference", () => {
     // RED001 end fix from its bundle: north -2215.5589 m, east -14072.9444 m from the start fix.
     const [lat, lon] = toLatLon({ lat: 35.534425, lon: -45.694675 }, -2215.558913392904, -14072.944438191462);
