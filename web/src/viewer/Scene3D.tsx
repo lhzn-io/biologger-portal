@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 import * as THREE from "three";
 import CameraControls from "camera-controls";
 import { Line2 } from "three/examples/jsm/lines/Line2.js";
@@ -27,19 +27,38 @@ interface SceneState {
   drop: THREE.Line;
   exag: number;
   frame: number;
+  focusDist: number; // view distance (scene units) for "zoom to the animal"
 }
 
+/** Camera actions the page's controls call. */
+export interface SceneView {
+  /** Glide the orbit point to the animal at the cursor and come in close, keeping the viewing angle. */
+  focusAnimal(): void;
+  /** Return to the view the scene opened with. */
+  home(): void;
+}
+
+/** A wheel event this long after the previous one starts a new zoom gesture. */
+const WHEEL_GESTURE_MS = 250;
 
 export default function Scene3D({
   track,
   dem,
   cursor,
   exaggeration,
+  depthMax,
+  follow = false,
+  viewRef,
 }: {
   track: Track;
   dem: Dem | null;
   cursor: number;
   exaggeration: number;
+  /** Depth (m) the track's colour ramp reaches at its deep end. */
+  depthMax: number;
+  /** Hold the orbit point on the animal as the cursor moves (orbit and zoom only; no pan). */
+  follow?: boolean;
+  viewRef?: RefObject<SceneView | null>;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const state = useRef<SceneState | null>(null);
@@ -135,7 +154,7 @@ export default function Scene3D({
     const lineIdx = strideIndices(track.count, LINE_POINTS);
     const lineGeo = new LineGeometry();
     lineGeo.setPositions(linePositions(track, lineIdx, exag));
-    lineGeo.setColors(lineIdx.flatMap((i) => trackDepthColor(track.depth[i]!)));
+    lineGeo.setColors(lineColors(track, lineIdx, depthMax));
     const lineMat = new LineMaterial({ vertexColors: true, linewidth: 2.5, worldUnits: false });
     const line = new Line2(lineGeo, lineMat);
     scene.add(line);
@@ -188,10 +207,52 @@ export default function Scene3D({
     const ro = new ResizeObserver(resize);
     ro.observe(el);
 
+    // Wheel zoom runs toward the orbit point, slowing as it nears it and creeping once it is closer than
+    // minDistance. With the orbit point left at the middle of the track's box, zooming toward terrain or a
+    // stretch of track elsewhere slowed to a crawl far from anything. So when a zoom gesture starts, the orbit
+    // point slides along the line of sight to the depth of whatever is under the cursor; the view does not
+    // move, and the zoom then slows only as the camera nears what it is heading for. This listener captures
+    // on the container, so it runs before camera-controls handles the same event on the canvas.
+    const ray = new THREE.Raycaster();
+    let lastWheel = -Infinity;
+    const onWheel = (e: WheelEvent) => {
+      const fresh = e.timeStamp - lastWheel > WHEEL_GESTURE_MS;
+      lastWheel = e.timeStamp;
+      if (!fresh || nav.mode !== "orbit" || nav.pivot !== "free") return;
+      const r = renderer.domElement.getBoundingClientRect();
+      if (!(r.width > 0 && r.height > 0)) return;
+      ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
+      const hit = ray.intersectObjects(terrain ? [marker, line, terrain] : [marker, line], true)[0];
+      if (!hit) return;
+      const c = nav.controls;
+      const eye = c.getPosition(new THREE.Vector3(), true);
+      const dir = c.getTarget(new THREE.Vector3(), true).sub(eye).normalize();
+      const along = hit.point.clone().sub(eye).dot(dir);
+      if (!(along > c.minDistance)) return;
+      const t = eye.clone().addScaledVector(dir, along);
+      void c.setLookAt(eye.x, eye.y, eye.z, t.x, t.y, t.z, true);
+    };
+    el.addEventListener("wheel", onWheel, { capture: true, passive: true });
+
     const clock = new THREE.Clock();
-    const st: SceneState = { renderer, scene, camera, nav, terrain, terrainZ, line, lineIdx, marker, drop, exag, frame: 0 };
+    const st: SceneState = {
+      renderer, scene, camera, nav, terrain, terrainZ, line, lineIdx, marker, drop, exag, frame: 0,
+      focusDist: Math.max(len * 8, 1),
+    }; // prettier-ignore
     state.current = st;
     placeMarker(st, track, dem, cursor);
+    if (viewRef) {
+      viewRef.current = {
+        focusAnimal: () => {
+          const c = nav.controls;
+          const p = st.marker.position;
+          void c.setFocalOffset(0, 0, 0, true);
+          void c.moveTo(p.x, p.y, p.z, true);
+          void c.dollyTo(st.focusDist, true);
+        },
+        home: () => nav.home(true),
+      };
+    }
     const loop = () => {
       st.frame = requestAnimationFrame(loop);
       nav.update(clock.getDelta());
@@ -201,6 +262,8 @@ export default function Scene3D({
     return () => {
       cancelAnimationFrame(st.frame);
       ro.disconnect();
+      el.removeEventListener("wheel", onWheel, { capture: true });
+      if (viewRef) viewRef.current = null;
       nav.dispose();
       scene.traverse((o) => {
         const m = o as THREE.Mesh;
@@ -230,6 +293,8 @@ export default function Scene3D({
       }
       pos.needsUpdate = true;
       st.terrain.geometry.computeVertexNormals();
+      st.terrain.geometry.computeBoundingSphere(); // ray casts (the wheel's zoom target) test against it
+      st.terrain.geometry.computeBoundingBox();
     }
     (st.line.geometry as LineGeometry).setPositions(linePositions(track, st.lineIdx, exaggeration));
     st.nav.rescaleVertical(prev, exaggeration, -median(track.depth) * prev * S);
@@ -238,8 +303,24 @@ export default function Scene3D({
   }, [exaggeration]);
 
   useEffect(() => {
-    if (state.current) placeMarker(state.current, track, dem, cursor);
-  }, [track, dem, cursor]);
+    const st = state.current;
+    if (!st) return;
+    placeMarker(st, track, dem, cursor);
+    // Following, the pivot is vantagekit's "fixed" one, held on the animal: drags orbit it and the wheel runs
+    // straight in and out, with no pan to pull the view away. Otherwise it is "free", for exploring.
+    const pivot = follow ? "fixed" : "free";
+    if (st.nav.pivot !== pivot) st.nav.setPivot(pivot);
+    if (follow) {
+      const p = st.marker.position;
+      void st.nav.controls.moveTo(p.x, p.y, p.z, true);
+    }
+  }, [track, dem, cursor, follow]);
+
+  // A new colour scale recolours the track in place (the camera stays).
+  useEffect(() => {
+    const st = state.current;
+    if (st) (st.line.geometry as LineGeometry).setColors(lineColors(track, st.lineIdx, depthMax));
+  }, [track, depthMax]);
 
   return (
     <div
@@ -248,6 +329,10 @@ export default function Scene3D({
       title="Drag to pan, right-drag or two fingers to orbit, wheel to zoom; click, then WASD to move"
     />
   );
+}
+
+function lineColors(track: Track, idx: number[], depthMax: number): number[] {
+  return idx.flatMap((i) => trackDepthColor(track.depth[i]!, depthMax));
 }
 
 function linePositions(track: Track, idx: number[], exag: number): number[] {

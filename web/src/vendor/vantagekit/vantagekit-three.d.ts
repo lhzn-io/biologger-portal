@@ -24,6 +24,9 @@ export interface VantageOptions {
 
 export declare class Vantage extends EventTarget {
   controls: CameraControls;
+  readonly mode: "orbit" | "fly";
+  readonly pivot: "free" | "fixed";
+  setPivot(mode: "free" | "fixed", options?: { emit?: boolean }): void;
   update(dt: number): boolean;
   fitBox(box: THREE.Box3, options?: { bearingDeg?: number; elevationDeg?: number; factor?: number; animate?: boolean }): unknown;
   saveHome(): void;

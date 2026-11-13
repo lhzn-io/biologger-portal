@@ -73,9 +73,28 @@ export function elevationAt(dem: Dem, lat: number, lon: number): number {
   return (v00 * (1 - ax) + v10 * ax) * (1 - ay) + (v01 * (1 - ax) + v11 * ax) * ay;
 }
 
-/** Colour of the animal's depth (m, positive down) along a track: pale yellow at the surface to magenta at 600 m and below. */
-export function trackDepthColor(depth: number): [number, number, number] {
-  const t = Math.min(1, Math.max(0, depth / 600));
+/** The range the animal-depth colours span: 0 to `max` m, fitted to a species' tracks or to one track. */
+export interface DepthScale {
+  max: number;
+  ticks: number[];
+  basis: "species" | "track";
+}
+
+const NICE_MAX = [50, 100, 150, 200, 250, 300, 400, 500, 600, 750, 800, 1000, 1200, 1500, 2000, 2500, 3000, 4000, 5000, 6000];
+const TICK_STEP = [25, 50, 100, 200, 250, 300, 400, 500, 1000, 2000];
+
+/** A depth scale from 0 to the deepest value rounded up to a round number, with four tick intervals where a round step allows (five otherwise). */
+export function depthScale(deepest: number, basis: DepthScale["basis"]): DepthScale {
+  const d = Number.isFinite(deepest) && deepest > 0 ? deepest : 1;
+  const max = NICE_MAX.find((n) => n >= d) ?? Math.ceil(d / 1000) * 1000;
+  const fits = (n: number) => TICK_STEP.find((s) => max % s === 0 && max / s <= n);
+  const step = fits(4) ?? fits(5) ?? max;
+  return { max, ticks: Array.from({ length: Math.round(max / step) + 1 }, (_, k) => k * step), basis };
+}
+
+/** Colour of the animal's depth (m, positive down) along a track: pale yellow at the surface to magenta at `max` m. */
+export function trackDepthColor(depth: number, max = 600): [number, number, number] {
+  const t = Math.min(1, Math.max(0, depth / max));
   return [0.99 * (1 - t) + 0.75 * t, 0.88 * (1 - t) + 0.15 * t, 0.28 * (1 - t) + 0.83 * t];
 }
 

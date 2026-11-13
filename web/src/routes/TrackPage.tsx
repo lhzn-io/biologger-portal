@@ -1,14 +1,16 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Button, ErrorNote, Loading, Panel } from "../components/ui";
 import CollectPanel from "../collect/CollectPanel";
 import { mapText, readoutText } from "../collect/texts";
+import { useTracks } from "../lib/queries";
 import Charts from "../viewer/Charts";
-import { loadDem } from "../viewer/dem";
+import { depthScale, loadDem, type DepthScale } from "../viewer/dem";
 import { Credits, Legend } from "../viewer/Legend";
 import { fmt, readoutAt } from "../viewer/readout";
-import Scene3D from "../viewer/Scene3D";
+import Scene3D, { type SceneView } from "../viewer/Scene3D";
+import SceneControls from "../viewer/SceneControls";
 import { loadTrack } from "../viewer/track";
 
 const SPEEDS = [60, 600, 3600]; // seconds of track per second of playback
@@ -20,12 +22,34 @@ export default function TrackPage() {
   const track = useQuery({ queryKey: ["track", depId, runId], queryFn: () => loadTrack(depId, runId), staleTime: Infinity });
   // The DEM crop can take up to a minute the first time topobathykit builds it; the track shows meanwhile.
   const dem = useQuery({ queryKey: ["dem", depId, runId], queryFn: () => loadDem(depId, runId), staleTime: Infinity, retry: 1 });
+  const tracks = useTracks();
   const [cursor, setCursor] = useState(0);
   const [exag, setExag] = useState(5);
   const [speed, setSpeed] = useState<number | null>(null);
+  const [follow, setFollow] = useState(false);
+  const [basis, setBasis] = useState<DepthScale["basis"]>("species");
+  const view = useRef<SceneView | null>(null);
   const onCursor = useCallback((i: number) => setCursor(i), []);
 
   const tr = track.data;
+  // Animal depth colours: by default one scale for every track of the species (deepest of them, rounded up),
+  // so a colour means the same depth on each of their pages; "this track only" fits the track itself.
+  const trackList = tracks.data;
+  const scales = useMemo(() => {
+    let deepest = 0;
+    for (const d of tr?.depth ?? []) if (d > deepest) deepest = d;
+    const list = trackList ?? [];
+    const species = list.find((t) => t.deployment_id === depId && t.run_id === runId)?.species || undefined;
+    const peers = species ? list.filter((t) => t.species === species) : [];
+    const speciesDeepest = Math.max(deepest, ...peers.map((t) => t.bounds.depth_m?.[1] ?? 0));
+    return {
+      species,
+      track: depthScale(deepest, "track"),
+      ofSpecies: peers.length ? depthScale(speciesDeepest, "species") : null,
+    };
+  }, [tr, trackList, depId, runId]);
+  const species = scales.species;
+  const scale = basis === "species" && scales.ofSpecies ? scales.ofSpecies : scales.track;
   useEffect(() => {
     if (!tr || speed == null) return;
     let last = performance.now();
@@ -95,10 +119,6 @@ export default function TrackPage() {
               ))}
             </select>
           </label>
-          <label className="flex items-center gap-2 text-muted">
-            Vertical exaggeration {exag}x
-            <input type="range" min={1} max={20} value={exag} onChange={(e) => setExag(Number(e.target.value))} />
-          </label>
           {dem.isLoading && <span className="text-xs text-muted">Fetching topobathymetry (the first view of a track can take up to a minute)...</span>}
           {dem.error && <span className="text-xs text-bad">No terrain: {dem.error.message}</span>}
           {dem.data && (
@@ -109,10 +129,29 @@ export default function TrackPage() {
         </div>
       </CollectPanel>
 
-      <CollectPanel id={`${key}:scene`} title={`3D view, ${depId}`} text={() => mapText(tr, dem.data ?? null, exag)}>
+      <CollectPanel id={`${key}:scene`} title={`3D view, ${depId}`} text={() => mapText(tr, dem.data ?? null, exag, scale, species)}>
         <div className="relative h-[36rem]">
-          <Scene3D track={tr} dem={dem.data ?? null} cursor={cursor} exaggeration={exag} />
-          <Legend track />
+          <Scene3D track={tr} dem={dem.data ?? null} cursor={cursor} exaggeration={exag} depthMax={scale.max} follow={follow} viewRef={view} />
+          <Legend depth={scale} species={species} />
+          <SceneControls
+            onFocus={() => view.current?.focusAnimal()}
+            onHome={() => {
+              setFollow(false);
+              view.current?.home();
+            }}
+            exaggeration={exag}
+            onExaggeration={setExag}
+            follow={follow}
+            onFollow={(on) => {
+              setFollow(on);
+              if (on) view.current?.focusAnimal();
+            }}
+            basis={basis}
+            onBasis={setBasis}
+            speciesScale={scales.ofSpecies}
+            trackScale={scales.track}
+            species={species}
+          />
           <Credits />
         </div>
       </CollectPanel>

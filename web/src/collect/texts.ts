@@ -2,7 +2,7 @@
 import { duration, utc } from "../lib/format";
 import type { DeploymentDetail, Matrix, ValidationRun } from "../lib/types";
 import type { ChartSeries } from "../viewer/Charts";
-import type { Dem } from "../viewer/dem";
+import type { DepthScale, Dem } from "../viewer/dem";
 import { fmt, readoutAt } from "../viewer/readout";
 import type { Track } from "../viewer/track";
 import { lines, stats } from "./prompt";
@@ -102,7 +102,14 @@ export function readoutText(track: Track, dem: Dem | null, cursor: number): stri
   ]);
 }
 
-export function mapText(track: Track, dem: Dem | null, exaggeration?: number): string {
+export function mapText(
+  track: Track,
+  dem: Dem | null,
+  exaggeration?: number,
+  depth: DepthScale = { max: 600, ticks: [], basis: "track" },
+  species?: string,
+): string {
+  const span = depth.basis === "species" && species ? `the deepest of all ${species} tracks` : "this track's deepest point";
   const m = track.manifest;
   const fixes = m.fixes.map((f) => `${f.kind} fix ${f.time_utc} at ${fmt(f.lat, 5)}, ${fmt(f.lon, 5)}`).join("; ");
   const d = stats(track.depth);
@@ -121,7 +128,7 @@ export function mapText(track: Track, dem: Dem | null, exaggeration?: number): s
     ["vertical_exaggeration", exaggeration != null ? `${exaggeration}x` : ""],
     [
       "colours",
-      "terrain by seafloor depth, light blue at 0 m to dark navy at 3000 m and deeper; track by the animal's depth, pale yellow at the surface to magenta at 600 m and deeper",
+      `terrain by seafloor depth, light blue at 0 m to dark navy at 3000 m and deeper; track by the animal's depth, pale yellow at the surface to magenta at ${depth.max} m (a scale fitted to ${span}, rounded up)`,
     ],
   ]);
 }
