@@ -34,10 +34,13 @@ if [ -f "$ENV_FILE" ]; then set -a; . "$ENV_FILE"; set +a; fi
 export PORTAL_DATASETS_ROOT="${PORTAL_DATASETS_ROOT:-$HOME/Projects/whoi-mpg/datasets}"
 SNAPSHOT="$PORTAL_DATASETS_ROOT/.portal/publish"
 
-# Answers with a redirect to <team>.cloudflareaccess.com when Access protects the host.
+# Answers with a redirect to <team>.cloudflareaccess.com when Access protects the host. The address comes from
+# public DNS, not the system resolver: a new host name stays "not found" in a local cache for up to half an hour.
 access_protects_host() {
-  local loc
-  loc="$(curl -s -m 15 -o /dev/null -w '%{redirect_url}' "https://$HOST/data/v1/snapshot.json" || true)"
+  local ip loc
+  ip="$(dig +short +time=5 A "$HOST" @1.1.1.1 | grep -E '^[0-9.]+$' | head -1 || true)"
+  [ -n "$ip" ] || return 1
+  loc="$(curl -s -m 15 --resolve "$HOST:443:$ip" -o /dev/null -w '%{redirect_url}' "https://$HOST/data/v1/snapshot.json" || true)"
   [[ "$loc" == https://*.cloudflareaccess.com/* ]]
 }
 
