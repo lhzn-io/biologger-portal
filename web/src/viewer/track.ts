@@ -42,6 +42,11 @@ export interface Track {
   /** Overall dynamic body acceleration (sum of the absolute dynamic axes), same units as VeDBA; null in bundles
    * exported before biologger-sim wrote an "odba" column. */
   odba: Float32Array | null;
+  /** Cumulative (unwrapped) roll in degrees, computed by the exporter at the tag's native rate; null when the
+   * bundle has no such column and the viewer unwraps the bundle-rate roll itself. */
+  rollUnwrapped: Float32Array | null;
+  /** Exporter's roll quality per sample (0 fine, nonzero an uncertain unwrap step or ill-conditioned roll). */
+  rollQuality: Float32Array | null;
   lat: Float64Array;
   lon: Float64Array;
   units: Record<string, string>;
@@ -71,6 +76,11 @@ export function parseTrack(manifest: TrackManifest, buffer: ArrayBuffer): Track 
     // Copy out of the shared buffer so each column is aligned and independent.
     return new Float32Array(buffer.slice(c.offset_bytes, c.offset_bytes + n * 4));
   };
+  /** A column the exporter may not write yet: the first of `names` present, or null. */
+  const optional = (...names: string[]): Float32Array | null => {
+    const name = names.find((x) => manifest.columns.some((c) => c.name === x));
+    return name ? col(name) : null;
+  };
   const north = col("north_m");
   const east = col("east_m");
   const lat = new Float64Array(n);
@@ -98,7 +108,9 @@ export function parseTrack(manifest: TrackManifest, buffer: ArrayBuffer): Track 
     pitch: col("pitch_deg"),
     roll: col("roll_deg"),
     vedba: col("vedba"),
-    odba: manifest.columns.some((c) => c.name === "odba") ? col("odba") : null,
+    odba: optional("odba"),
+    rollUnwrapped: optional("roll_unwrapped_deg", "roll_cum_deg"),
+    rollQuality: optional("roll_quality", "roll_qc"),
     lat,
     lon,
     units: Object.fromEntries(manifest.columns.map((c) => [c.name, c.unit ?? ""])),

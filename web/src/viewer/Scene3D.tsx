@@ -44,6 +44,8 @@ export interface SceneView {
   focusAnimal(): void;
   /** Return to the view the scene opened with. */
   home(): void;
+  /** Glide the orbit point to the animal at sample `i`, keeping the current viewing distance and angle. */
+  centreOn(i: number): void;
 }
 
 /** A wheel event this long after the previous one starts a new zoom gesture. */
@@ -267,6 +269,15 @@ export default function Scene3D({
           void c.dollyTo(Math.max(c.minDistance, st.trueLen / perPixel(1) / FOCUS_PX), true);
         },
         home: () => nav.home(true),
+        centreOn: (i: number) => {
+          const c = nav.controls;
+          const x = track.east[i]! * S;
+          const y = -track.depth[i]! * st.exag * S;
+          const z = -track.north[i]! * S;
+          if (!Number.isFinite(x + y + z)) return;
+          void c.setFocalOffset(0, 0, 0, true);
+          void c.moveTo(x, y, z, true); // the camera keeps its offset from the orbit point: same distance and angle
+        },
       };
     }
     const loop = () => {

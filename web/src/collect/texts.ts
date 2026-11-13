@@ -156,6 +156,7 @@ export function chartText(series: ChartSeries, track: Track, cursor: number): st
     ["cursor_utc", new Date(cursorT * 1000).toISOString()],
   ]);
   const body = series.lines
+    .filter((l) => l.label) // unlabelled lines are drawing aids
     .map((l) => {
       const s = stats(l.ys);
       const sign = series.id === "depth" ? -1 : 1; // the depth chart draws depth as a negative height
@@ -165,5 +166,5 @@ export function chartText(series: ChartSeries, track: Track, cursor: number): st
       return `- ${l.label}: min ${v(lo)}, max ${v(hi)}, mean ${v(s.mean)}, at cursor ${v(l.ys[at]!)}`;
     })
     .join("\n");
-  return `${head}\n${body}`;
+  return series.notes?.length ? `${head}\n${body}\n${lines(series.notes)}` : `${head}\n${body}`;
 }
