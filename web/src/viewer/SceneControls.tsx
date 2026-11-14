@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { DepthScale } from "./dem";
-import type { ChartPick } from "./link";
+import type { ChartPick, TrackColor } from "./link";
 
 const PICKS: { value: ChartPick; label: string; note: string }[] = [
   { value: "lock", label: "Lock the view", note: "only the cursor moves" },
@@ -29,6 +29,9 @@ export default function SceneControls({
   onBasis,
   pick,
   onPick,
+  trackColor,
+  onTrackColor,
+  hasOdba,
   speciesScale,
   trackScale,
   species,
@@ -52,6 +55,10 @@ export default function SceneControls({
   /** What a click on an "Along the track" chart does to the camera. */
   pick: ChartPick;
   onPick: (p: ChartPick) => void;
+  trackColor: TrackColor;
+  onTrackColor: (c: TrackColor) => void;
+  /** The track bundle has an ODBA column. */
+  hasOdba: boolean;
   trackScale: DepthScale;
   species?: string;
 }) {
@@ -99,6 +106,20 @@ export default function SceneControls({
               <span className="block opacity-80">the view orbits it as it moves; drag to circle, wheel to zoom</span>
             </span>
           </label>
+          <fieldset className="space-y-1">
+            <legend className="mb-1">Track color</legend>
+            <label className="flex items-start gap-2">
+              <input type="radio" name="track-color" className="mt-0.5" checked={trackColor === "depth" || !hasOdba} onChange={() => onTrackColor("depth")} />
+              <span>Animal depth</span>
+            </label>
+            <label className={`flex items-start gap-2 ${hasOdba ? "" : "opacity-50"}`}>
+              <input type="radio" name="track-color" className="mt-0.5" disabled={!hasOdba} checked={trackColor === "odba" && hasOdba} onChange={() => onTrackColor("odba")} />
+              <span>
+                ODBA (body acceleration)
+                <span className="block opacity-80">{hasOdba ? "an activity measure, averaged along the line" : "not in this track bundle"}</span>
+              </span>
+            </label>
+          </fieldset>
           <fieldset className="space-y-1">
             <legend className="mb-1">A click on a chart below</legend>
             {PICKS.map((p) => (

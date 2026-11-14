@@ -11,7 +11,12 @@ export interface PageLink {
   play?: PlayCamera;
   /** What a click on a chart does to the 3D camera. */
   pick?: ChartPick;
+  /** What the 3D view's track is colored by. */
+  color?: TrackColor;
 }
+
+/** The 3D view's track colors: the animal's depth, or its ODBA (body acceleration, an activity measure). */
+export type TrackColor = "depth" | "odba";
 
 /** A chart click moves the cursor and: leaves the camera (lock), turns it in place to face the animal (look), or moves it to center the animal (center). */
 export type ChartPick = "lock" | "look" | "center";
@@ -46,6 +51,7 @@ export function readPageLink(search: string): PageLink {
   if (PLAY_CAMERAS.includes(play as PlayCamera)) out.play = play as PlayCamera;
   const pick = p.get("pick");
   if (CHART_PICKS.includes(pick as ChartPick)) out.pick = pick as ChartPick;
+  if (p.get("color") === "odba") out.color = "odba";
   return out;
 }
 
@@ -61,4 +67,6 @@ export function writePageLink(params: URLSearchParams, s: Required<PageLink>): v
   else params.delete("play");
   if (s.pick !== DEFAULT_CHART_PICK) params.set("pick", s.pick);
   else params.delete("pick");
+  if (s.color === "odba") params.set("color", "odba");
+  else params.delete("color");
 }

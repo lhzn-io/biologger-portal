@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { activityColor, type ActivityScale } from "./activity";
 import { elevationColor, trackDepthColor, type DepthScale } from "./dem";
 
 type Rgb = [number, number, number];
@@ -50,10 +51,10 @@ function ColorBar({
 }
 
 /**
- * Color keys for the terrain and, when a track is drawn by depth, the track (both in meters below the surface).
- * `depth` is the track's scale; `species` names whose tracks a species scale spans.
+ * Color keys for the terrain and the track: by depth (`depth`, meters below the surface; `species` names whose
+ * tracks a species scale spans) or by ODBA (`activity`).
  */
-export function Legend({ depth, species }: { depth?: DepthScale | null; species?: string }) {
+export function Legend({ depth, activity, species }: { depth?: DepthScale | null; activity?: ActivityScale | null; species?: string }) {
   return (
     <div className="pointer-events-none absolute top-2 left-2 w-44 space-y-1 rounded bg-panel/85 px-2 py-1.5 text-[10px] text-muted">
       <ColorBar label="Seafloor depth (m)" max={3000} color={(d) => elevationColor(-d)} ticks={[0, 1000, 2000, 3000]} />
@@ -65,6 +66,15 @@ export function Legend({ depth, species }: { depth?: DepthScale | null; species?
           color={(d) => trackDepthColor(d, depth.max)}
           ticks={depth.ticks}
           open={false}
+        />
+      )}
+      {activity && (
+        <ColorBar
+          label={`Animal ODBA (${activity.unit})`}
+          note={`mean per ${Math.round(activity.stretch_s)} s, this track`}
+          max={activity.max}
+          color={(v) => activityColor(v, activity.max)}
+          ticks={activity.ticks}
         />
       )}
     </div>

@@ -1,5 +1,6 @@
 /** Prompt text for each collectable view, built from the same values the view renders. */
 import { duration, utc } from "../lib/format";
+import type { ActivityScale } from "../viewer/activity";
 import type { DeploymentDetail, Matrix, ValidationRun } from "../lib/types";
 import type { ChartSeries } from "../viewer/Charts";
 import type { DepthScale, Dem } from "../viewer/dem";
@@ -108,6 +109,7 @@ export function mapText(
   exaggeration?: number,
   depth: DepthScale = { max: 600, ticks: [], basis: "track" },
   species?: string,
+  activity?: ActivityScale | null,
 ): string {
   const span = depth.basis === "species" && species ? `the deepest of all ${species} tracks` : "this track's deepest point";
   const m = track.manifest;
@@ -128,7 +130,10 @@ export function mapText(
     ["vertical_exaggeration", exaggeration != null ? `${exaggeration}x` : ""],
     [
       "colors",
-      `terrain by seafloor depth, light blue at 0 m to dark navy at 3000 m and deeper; track by the animal's depth, pale yellow at the surface to magenta at ${depth.max} m (a scale fitted to ${span}, rounded up)`,
+      `terrain by seafloor depth, light blue at 0 m to dark navy at 3000 m and deeper; ` +
+        (activity
+          ? `track by ODBA averaged over each drawn stretch of about ${Math.round(activity.stretch_s)} s, pale yellow at 0 through red-orange to dark violet at ${activity.max} ${activity.unit} and above (0 to this track's 98th percentile, rounded up)`
+          : `track by the animal's depth, pale yellow at the surface to magenta at ${depth.max} m (a scale fitted to ${span}, rounded up)`),
     ],
   ]);
 }

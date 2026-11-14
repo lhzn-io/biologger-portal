@@ -323,14 +323,16 @@ export function chartSeries(track: Track, dem: Dem | null): ChartSeries[] {
   const seafloor = dem ? idx.map((i) => elevationAt(dem, track.lat[i]!, track.lon[i]!)) : null;
   const depthLines: Line[] = [{ ys: pick(track.depth).map((d) => -d), color: "#fbbf24", label: "Animal", fmt: (v) => `${(-v).toFixed(0)} m` }];
   if (seafloor) depthLines.push({ ys: seafloor, color: "#94a3b8", label: "Seafloor (DEM)", dash: "3 2", fmt: (v) => `${(-v).toFixed(0)} m` });
-  // Dynamic body acceleration: VeDBA (vector length) and, when the bundle has it, ODBA (sum of absolute axes, up to
-  // root 3 times VeDBA for the same motion), on one axis since they share units.
+  // Dynamic body acceleration, each on its own chart: ODBA (sum of the absolute axes) is never below VeDBA (vector
+  // length) for the same motion, up to root 3 times it, so on one axis ODBA covered VeDBA.
   const unit = track.units.vedba || "m/s^2";
-  const activity: Line[] = [{ ys: pick(track.vedba), color: "#3b9cff", label: "VeDBA" }];
-  if (track.odba) activity.push({ ys: pick(track.odba), color: "#a78bfa", label: "ODBA", opacity: 0.8 });
+  const odba: ChartSeries[] = track.odba
+    ? [{ id: "odba", title: `ODBA (${track.units.odba || unit})`, unit: "", xs, lines: [{ ys: pick(track.odba), color: "#a78bfa", label: "ODBA" }] }]
+    : [];
   return [
     { id: "depth", title: "Depth (m, below the surface)", unit: "m", xs, lines: depthLines },
-    { id: "vedba", title: `${track.odba ? "VeDBA and ODBA" : "VeDBA"} (${unit})`, unit: "", xs, lines: activity },
+    { id: "vedba", title: `VeDBA (${unit})`, unit: "", xs, lines: [{ ys: pick(track.vedba), color: "#3b9cff", label: "VeDBA" }] },
+    ...odba,
     { id: "pitch", title: "Pitch (degrees)", unit: "deg", xs, lines: [{ ys: pick(track.pitch), color: "#34d399", label: "Pitch" }] },
     postureSeries(track, idx, xs),
     rollSeries(track, idx, xs),

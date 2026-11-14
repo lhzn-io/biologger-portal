@@ -5,15 +5,16 @@ import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { createVantage, type Vantage } from "../vendor/vantagekit/vantagekit-three.js";
+import { activityColor, LINE_POINTS, segmentMeans } from "./activity";
 import { loadAnimalModel } from "./animal";
 import { elevationAt, elevationColor, trackDepthColor, type Dem } from "./dem";
+import type { TrackColor } from "./link";
 import { EARTH_RADIUS_M, strideIndices, type Track } from "./track";
 
 /** Scene units are 100 m (vantagekit metersPerUnit), as in topobathykit's DEM viewer. */
 const S = 0.01;
 const D2R = Math.PI / 180;
 const MAX_MESH_SIDE = 512; // terrain vertices per side; the full grid is kept for depth lookups
-const LINE_POINTS = 6000;
 
 interface SceneState {
   renderer: THREE.WebGLRenderer;
@@ -78,7 +79,8 @@ export default function Scene3D({
   dem,
   cursor,
   exaggeration,
-  depthMax,
+  colorBy = "depth",
+  colorMax,
   follow = false,
   chase = false,
   species,
@@ -90,7 +92,10 @@ export default function Scene3D({
   cursor: number;
   exaggeration: number;
   /** Depth (m) the track's color ramp reaches at its deep end. */
-  depthMax: number;
+  /** What the track is colored by: the animal's depth, or its ODBA (a mean per drawn stretch). */
+  colorBy?: TrackColor;
+  /** The value (m, or ODBA's unit) the track's color ramp reaches at its far end. */
+  colorMax: number;
   /** Hold the orbit point on the animal as the cursor moves (orbit and zoom only; no pan). */
   follow?: boolean;
   /**
@@ -204,7 +209,7 @@ export default function Scene3D({
     const lineIdx = strideIndices(track.count, LINE_POINTS);
     const lineGeo = new LineGeometry();
     lineGeo.setPositions(linePositions(track, lineIdx, exag));
-    lineGeo.setColors(lineColors(track, lineIdx, depthMax));
+    lineGeo.setColors(lineColors(track, lineIdx, colorBy, colorMax));
     const lineMat = new LineMaterial({ vertexColors: true, linewidth: 2.5, worldUnits: false });
     const line = new Line2(lineGeo, lineMat);
     scene.add(line);
@@ -488,8 +493,8 @@ export default function Scene3D({
   // A new color scale recolors the track in place (the camera stays).
   useEffect(() => {
     const st = state.current;
-    if (st) (st.line.geometry as LineGeometry).setColors(lineColors(track, st.lineIdx, depthMax));
-  }, [track, depthMax]);
+    if (st) (st.line.geometry as LineGeometry).setColors(lineColors(track, st.lineIdx, colorBy, colorMax));
+  }, [track, colorBy, colorMax]);
 
   return (
     <div
@@ -500,8 +505,9 @@ export default function Scene3D({
   );
 }
 
-function lineColors(track: Track, idx: number[], depthMax: number): number[] {
-  return idx.flatMap((i) => trackDepthColor(track.depth[i]!, depthMax));
+function lineColors(track: Track, idx: number[], colorBy: TrackColor, max: number): number[] {
+  if (colorBy === "odba" && track.odba) return Array.from(segmentMeans(track.odba, idx)).flatMap((v) => activityColor(v, max));
+  return idx.flatMap((i) => trackDepthColor(track.depth[i]!, max));
 }
 
 function linePositions(track: Track, idx: number[], exag: number): number[] {
