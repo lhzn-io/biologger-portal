@@ -531,11 +531,38 @@ function Chart({
       rendered = renderLines(el, opts);
     });
     ro.observe(el);
-    const click = (e: MouseEvent) => onTime(rendered.timeAt(e.clientX));
-    el.addEventListener("click", click);
+    // A press moves the cursor to the time under the pointer, and dragging scrubs: the cursor, and the 3D view as
+    // the page's chart-click choice says, follow the pointer.
+    let held: number | null = null;
+    const pickAt = (clientX: number) => onTime(rendered.timeAt(clientX));
+    const down = (e: PointerEvent) => {
+      if (e.button !== 0) return;
+      held = e.pointerId;
+      try {
+        el.setPointerCapture(e.pointerId); // keeps the drag when the pointer leaves the chart
+      } catch {
+        // not a live pointer (a synthetic event): scrub without capture
+      }
+      e.preventDefault(); // no text selection while dragging
+      pickAt(e.clientX);
+    };
+    const move = (e: PointerEvent) => {
+      if (held === e.pointerId) pickAt(e.clientX); // the browser sends pointer moves at most once a frame
+    };
+    const up = (e: PointerEvent) => {
+      if (held === e.pointerId) held = null;
+    };
+    el.style.touchAction = "pan-y"; // a sideways drag on a touch screen scrubs; an up or down one still scrolls
+    el.addEventListener("pointerdown", down);
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", up);
+    el.addEventListener("pointercancel", up);
     return () => {
       ro.disconnect();
-      el.removeEventListener("click", click);
+      el.removeEventListener("pointerdown", down);
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerup", up);
+      el.removeEventListener("pointercancel", up);
     };
   }, [series, onTime]);
   return (
@@ -564,9 +591,8 @@ function Chart({
 }
 
 /**
- * Linked charts and the time track; clicking a chart or dragging the track moves the shared cursor. A click on a
- * chart (not a drag of the track) also reports the picked sample through `onPick`, which the page uses to bring
- * the 3D view to the animal at that time.
+ * Linked charts and the time track; clicking or dragging across a chart, or dragging the track, moves the shared
+ * cursor and reports the picked sample through `onPick`, which the page uses to move the 3D view with it.
  */
 export default function Charts({
   track,
@@ -609,11 +635,15 @@ export default function Charts({
     range.setAttribute("aria-label", "Time along the track");
     host.append(range);
     timeTrack(range, (v) => timeOf(track, Math.round(v)), { timeZone: ZONE });
-    const onInput = () => onCursor(Number(range.value));
+    const onInput = () => {
+      const i = Number(range.value);
+      onCursor(i);
+      onPick?.(i);
+    };
     range.addEventListener("input", onInput);
     input.current = range;
     return () => range.removeEventListener("input", onInput);
-  }, [track, onCursor]);
+  }, [track, onCursor, onPick]);
 
   useEffect(() => {
     if (input.current && input.current.value !== String(cursor)) input.current.value = String(cursor);
