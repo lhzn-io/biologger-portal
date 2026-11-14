@@ -7,7 +7,15 @@ export interface PageLink {
   exaggeration?: number;
   basis?: "species" | "track";
   follow?: boolean;
+  /** What the camera does while the track plays. */
+  play?: PlayCamera;
 }
+
+/** The camera during playback: left where it is, following the animal at a fixed map angle, or at a fixed angle to its heading. */
+export type PlayCamera = "free" | "follow" | "orbit";
+export const PLAY_CAMERAS: PlayCamera[] = ["free", "follow", "orbit"];
+/** Playback follows the animal unless the viewer picks otherwise. */
+export const DEFAULT_PLAY_CAMERA: PlayCamera = "follow";
 
 export const EXAGGERATION_RANGE: [number, number] = [1, 20];
 
@@ -24,6 +32,8 @@ export function readPageLink(search: string): PageLink {
   const depth = p.get("depth");
   if (depth === "track" || depth === "species") out.basis = depth;
   if (p.get("follow") === "1") out.follow = true;
+  const play = p.get("play");
+  if (PLAY_CAMERAS.includes(play as PlayCamera)) out.play = play as PlayCamera;
   return out;
 }
 
@@ -35,4 +45,6 @@ export function writePageLink(params: URLSearchParams, s: Required<PageLink>): v
   else params.delete("depth");
   if (s.follow) params.set("follow", "1");
   else params.delete("follow");
+  if (s.play !== DEFAULT_PLAY_CAMERA) params.set("play", s.play);
+  else params.delete("play");
 }

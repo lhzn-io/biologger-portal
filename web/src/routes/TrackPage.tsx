@@ -11,10 +11,11 @@ import { Credits, Legend } from "../viewer/Legend";
 import { fmt, readoutAt } from "../viewer/readout";
 import Scene3D, { type SceneView } from "../viewer/Scene3D";
 import SceneControls from "../viewer/SceneControls";
-import { readPageLink, writePageLink } from "../viewer/link";
+import { DEFAULT_PLAY_CAMERA, PLAY_CAMERAS, readPageLink, writePageLink, type PlayCamera } from "../viewer/link";
 import { indexAt, loadTrack, timeOf } from "../viewer/track";
 
 const SPEEDS = [60, 600, 3600]; // seconds of track per second of playback
+const PLAY_CAMERA_LABELS: Record<PlayCamera, string> = { free: "Free", follow: "Follow", orbit: "Orbit" };
 
 export default function TrackPage() {
   const params = useParams();
@@ -31,6 +32,7 @@ export default function TrackPage() {
   const [exag, setExag] = useState(initial.exaggeration ?? 5);
   const [speed, setSpeed] = useState<number | null>(null);
   const [follow, setFollow] = useState(initial.follow ?? false);
+  const [playCam, setPlayCam] = useState<PlayCamera>(initial.play ?? DEFAULT_PLAY_CAMERA);
   const [basis, setBasis] = useState<DepthScale["basis"]>(initial.basis ?? "species");
   const view = useRef<SceneView | null>(null);
   const onCursor = useCallback((i: number) => setCursor(i), []);
@@ -44,11 +46,17 @@ export default function TrackPage() {
   const linkWrite = useRef<((p: URLSearchParams) => void) | null>(null);
   useEffect(() => {
     if (!tr) return;
-    const state = { time: timeOf(tr, cursor), exaggeration: exag, basis, follow };
+    const state = { time: timeOf(tr, cursor), exaggeration: exag, basis, follow, play: playCam };
     linkWrite.current = (p) => writePageLink(p, state);
     const id = setTimeout(() => view.current?.writeLink(), 400);
     return () => clearTimeout(id);
-  }, [tr, cursor, exag, basis, follow]);
+  }, [tr, cursor, exag, basis, follow, playCam]);
+  // While the track plays, Follow and Orbit hold the view on the animal: Follow keeps the viewing angle fixed to
+  // the map, Orbit keeps it fixed to the animal's heading. Pausing leaves the camera where it is, back under the
+  // viewer's own Follow setting.
+  const playing = speed != null;
+  const following = follow || (playing && playCam !== "free");
+  const orbiting = playing && playCam === "orbit";
   // Animal depth colors: by default one scale for every track of the species (deepest of them, rounded up),
   // so a color means the same depth on each of their pages; "this track only" fits the track itself.
   const trackList = tracks.data;
@@ -126,6 +134,7 @@ export default function TrackPage() {
         <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
           <Button kind="plain" onClick={() => {
             setCursor(cursor);
+            if (speed == null && playCam !== "free") view.current?.approachAnimal();
             setSpeed(speed == null ? SPEEDS[0]! : null);
           }}>
             {speed == null ? "Play" : "Pause"}
@@ -143,6 +152,20 @@ export default function TrackPage() {
               ))}
             </select>
           </label>
+          <label className="flex items-center gap-1 text-muted" title="What the 3D view's camera does while the track plays. Follow keeps the angle fixed to the map; Orbit keeps it fixed to the animal's heading. Drag, or click the view and use A/D to turn, W/S to tilt, Q/E to zoom.">
+            Camera
+            <select className="rounded border border-line bg-surface px-1" value={playCam} onChange={(e) => {
+              const next = e.target.value as PlayCamera;
+              setPlayCam(next);
+              if (playing && next !== "free") view.current?.approachAnimal();
+            }}>
+              {PLAY_CAMERAS.map((c) => (
+                <option key={c} value={c}>
+                  {PLAY_CAMERA_LABELS[c]}
+                </option>
+              ))}
+            </select>
+          </label>
           {dem.isLoading && <span className="text-xs text-muted">Fetching topobathymetry (the first view of a track can take up to a minute)...</span>}
           {dem.error && <span className="text-xs text-bad">No terrain: {dem.error.message}</span>}
           {dem.data && (
@@ -155,12 +178,13 @@ export default function TrackPage() {
 
       <CollectPanel id={`${key}:scene`} title={`3D view, ${depId}`} text={() => mapText(tr, dem.data ?? null, exag, scale, species)}>
         <div className="relative h-[36rem]">
-          <Scene3D track={tr} dem={dem.data ?? null} cursor={cursor} exaggeration={exag} depthMax={scale.max} follow={follow} species={species} viewRef={view} linkWrite={linkWrite} />
+          <Scene3D track={tr} dem={dem.data ?? null} cursor={cursor} exaggeration={exag} depthMax={scale.max} follow={following} orbit={orbiting} species={species} viewRef={view} linkWrite={linkWrite} />
           <Legend depth={scale} species={species} />
           <SceneControls
             onFocus={() => view.current?.focusAnimal()}
             onHome={() => {
               setFollow(false);
+              if (playing) setPlayCam("free");
               view.current?.home();
             }}
             exaggeration={exag}

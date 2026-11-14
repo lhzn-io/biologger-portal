@@ -42,6 +42,8 @@ const FOCUS_PX = 160;
 export interface SceneView {
   /** Glide the orbit point to the animal at the cursor and come in close, keeping the viewing angle. */
   focusAnimal(): void;
+  /** As focusAnimal, but only when the animal is far off (drawn at the minimum marker size); else keep the distance. */
+  approachAnimal(): void;
   /** Return to the view the scene opened with. */
   home(): void;
   /** Glide the orbit point to the animal at sample `i`, keeping the current viewing distance and angle. */
@@ -52,6 +54,8 @@ export interface SceneView {
 
 /** A wheel event this long after the previous one starts a new zoom gesture. */
 const WHEEL_GESTURE_MS = 250;
+/** Orbit turns the view with the animal's heading smoothed over this time (s, on screen), so a noisy heading does not shake it. */
+const ORBIT_SMOOTH_S = 1.5;
 
 export default function Scene3D({
   track,
@@ -60,6 +64,7 @@ export default function Scene3D({
   exaggeration,
   depthMax,
   follow = false,
+  orbit = false,
   species,
   viewRef,
   linkWrite,
@@ -72,6 +77,11 @@ export default function Scene3D({
   depthMax: number;
   /** Hold the orbit point on the animal as the cursor moves (orbit and zoom only; no pan). */
   follow?: boolean;
+  /**
+   * Turn the view with the animal (with `follow`): the angle the viewer sets by dragging or with the keys (A/D turn,
+   * W/S tilt, Q/E zoom) is held relative to the animal's heading, so it stays behind, beside or ahead of it as it turns.
+   */
+  orbit?: boolean;
   /** Scientific name, to draw the animal with its species model where one is packed. */
   species?: string;
   viewRef?: RefObject<SceneView | null>;
@@ -80,6 +90,10 @@ export default function Scene3D({
 }) {
   const box = useRef<HTMLDivElement>(null);
   const state = useRef<SceneState | null>(null);
+  const orbitOn = useRef(orbit);
+  useEffect(() => {
+    orbitOn.current = orbit;
+  }, [orbit]);
 
   // Build the scene once per track and DEM.
   useEffect(() => {
@@ -262,6 +276,7 @@ export default function Scene3D({
     el.addEventListener("wheel", onWheel, { capture: true, passive: true });
 
     const clock = new THREE.Clock();
+    let orbitYaw: number | null = null; // the smoothed animal yaw the orbit view last turned to
     const st: SceneState = {
       renderer, scene, camera, nav, terrain, terrainZ, line, lineIdx, marker, drop, exag, frame: 0,
       trueLen: DEFAULT_LENGTH_M * S,
@@ -280,6 +295,10 @@ export default function Scene3D({
           // close enough that the animal, at true size, spans FOCUS_PX on screen
           void c.dollyTo(Math.max(c.minDistance, st.trueLen / perPixel(1) / FOCUS_PX), true);
         },
+        approachAnimal: () => {
+          const far = st.trueLen < MARKER_PX * perPixel(camera.position.distanceTo(st.marker.position));
+          if (far) viewRef.current?.focusAnimal();
+        },
         home: () => nav.home(true),
         writeLink: () => {
           nav.writeLink();
@@ -297,7 +316,17 @@ export default function Scene3D({
     }
     const loop = () => {
       st.frame = requestAnimationFrame(loop);
-      nav.update(clock.getDelta());
+      const dt = clock.getDelta();
+      // Orbit: the camera turns about the animal by as much as the animal's (smoothed) yaw turned since the last
+      // frame. Only the change is applied, so whatever angle the viewer drags or keys to is the one kept.
+      if (orbitOn.current) {
+        const yaw = st.marker.rotation.y;
+        if (orbitYaw == null) orbitYaw = yaw;
+        const turn = Math.atan2(Math.sin(yaw - orbitYaw), Math.cos(yaw - orbitYaw)) * (1 - Math.exp(-Math.min(dt, 0.1) / ORBIT_SMOOTH_S));
+        orbitYaw += turn;
+        if (turn) void nav.controls.rotate(turn, 0, false);
+      } else orbitYaw = null;
+      nav.update(dt);
       // The animal is drawn at its true length when that is at least MARKER_PX on screen, and at MARKER_PX when
       // it would be smaller, so it stays visible from kilometers away.
       st.marker.scale.setScalar(Math.max(st.trueLen, MARKER_PX * perPixel(camera.position.distanceTo(st.marker.position))));
