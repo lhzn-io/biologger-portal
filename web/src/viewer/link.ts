@@ -9,13 +9,23 @@ export interface PageLink {
   follow?: boolean;
   /** What the camera does while the track plays. */
   play?: PlayCamera;
+  /** What a click on a chart does to the 3D camera. */
+  pick?: ChartPick;
 }
 
-/** The camera during playback: left where it is, following the animal at a fixed map angle, or at a fixed angle to its heading. */
-export type PlayCamera = "free" | "follow" | "orbit";
-export const PLAY_CAMERAS: PlayCamera[] = ["free", "follow", "orbit"];
-/** Playback follows the animal unless the viewer picks otherwise. */
-export const DEFAULT_PLAY_CAMERA: PlayCamera = "follow";
+/** A chart click moves the cursor and: leaves the camera (lock), turns it in place to face the animal (look), or moves it to center the animal (center). */
+export type ChartPick = "lock" | "look" | "center";
+export const CHART_PICKS: ChartPick[] = ["lock", "look", "center"];
+export const DEFAULT_CHART_PICK: ChartPick = "center";
+
+/**
+ * The camera during playback: left where it is (free), behind the animal turning with it (chase), or on the animal
+ * at an angle the viewer sets with the mouse (orbit).
+ */
+export type PlayCamera = "free" | "chase" | "orbit";
+export const PLAY_CAMERAS: PlayCamera[] = ["free", "chase", "orbit"];
+/** Playback chases the animal unless the viewer picks otherwise. */
+export const DEFAULT_PLAY_CAMERA: PlayCamera = "chase";
 
 export const EXAGGERATION_RANGE: [number, number] = [1, 20];
 
@@ -34,6 +44,8 @@ export function readPageLink(search: string): PageLink {
   if (p.get("follow") === "1") out.follow = true;
   const play = p.get("play");
   if (PLAY_CAMERAS.includes(play as PlayCamera)) out.play = play as PlayCamera;
+  const pick = p.get("pick");
+  if (CHART_PICKS.includes(pick as ChartPick)) out.pick = pick as ChartPick;
   return out;
 }
 
@@ -47,4 +59,6 @@ export function writePageLink(params: URLSearchParams, s: Required<PageLink>): v
   else params.delete("follow");
   if (s.play !== DEFAULT_PLAY_CAMERA) params.set("play", s.play);
   else params.delete("play");
+  if (s.pick !== DEFAULT_CHART_PICK) params.set("pick", s.pick);
+  else params.delete("pick");
 }

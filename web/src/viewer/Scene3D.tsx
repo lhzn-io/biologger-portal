@@ -29,6 +29,7 @@ interface SceneState {
   exag: number;
   frame: number;
   trueLen: number; // the animal's true length in scene units
+  cursor: number; // the sample the marker is placed at
 }
 
 /** Length (m) assumed for the stand-in marker when no species model is loaded. */
@@ -42,20 +43,35 @@ const FOCUS_PX = 160;
 export interface SceneView {
   /** Glide the orbit point to the animal at the cursor and come in close, keeping the viewing angle. */
   focusAnimal(): void;
-  /** As focusAnimal, but only when the animal is far off (drawn at the minimum marker size); else keep the distance. */
-  approachAnimal(): void;
+  /**
+   * Bring the camera to the animal for playback. Chase: behind it, a little above its line of travel, at the chase
+   * distance. Orbit: keeping the viewing angle, far enough out to show the track `halfWindow` samples either side
+   * of the cursor. Skipped when the viewer has zoomed or dragged during playback since the last forced approach.
+   */
+  approach(mode: "chase" | "orbit", halfWindow: number, force: boolean): void;
   /** Return to the view the scene opened with. */
   home(): void;
   /** Glide the orbit point to the animal at sample `i`, keeping the current viewing distance and angle. */
   centerOn(i: number): void;
+  /** Turn the camera in place to face the animal at sample `i`; the camera does not move. */
+  lookAt(i: number): void;
   /** Write the camera and the page's parameters to the URL now (the camera's own moves write it as they settle). */
   writeLink(): void;
 }
 
 /** A wheel event this long after the previous one starts a new zoom gesture. */
 const WHEEL_GESTURE_MS = 250;
-/** Orbit turns the view with the animal's heading smoothed over this time (s, on screen), so a noisy heading does not shake it. */
-const ORBIT_SMOOTH_S = 1.5;
+/**
+ * Chase keeps the camera's attitude within this tolerance of the animal's heading and pitch, so tail beats and small
+ * course wobbles do not shake the view; beyond it, the camera catches up with this time constant (s, on screen).
+ */
+const CHASE_TOLERANCE_DEG = 10;
+const CHASE_CATCHUP_S = 0.6;
+/** Chase starts this far above the animal's line of travel (deg), at the distance where the animal spans CHASE_PX. */
+const CHASE_ELEVATION_DEG = 15;
+const CHASE_PX = 80;
+/** Orbit's starting distance leaves this much room around the track it frames. */
+const ORBIT_FRAME_MARGIN = 1.15;
 
 export default function Scene3D({
   track,
@@ -64,7 +80,7 @@ export default function Scene3D({
   exaggeration,
   depthMax,
   follow = false,
-  orbit = false,
+  chase = false,
   species,
   viewRef,
   linkWrite,
@@ -78,10 +94,10 @@ export default function Scene3D({
   /** Hold the orbit point on the animal as the cursor moves (orbit and zoom only; no pan). */
   follow?: boolean;
   /**
-   * Turn the view with the animal (with `follow`): the angle the viewer sets by dragging or with the keys (A/D turn,
-   * W/S tilt, Q/E zoom) is held relative to the animal's heading, so it stays behind, beside or ahead of it as it turns.
+   * Turn the view with the animal (with `follow`): the camera's angle to the animal's heading and pitch is held, to
+   * within CHASE_TOLERANCE_DEG, so a camera set behind it stays behind it as it turns, climbs and dives.
    */
-  orbit?: boolean;
+  chase?: boolean;
   /** Scientific name, to draw the animal with its species model where one is packed. */
   species?: string;
   viewRef?: RefObject<SceneView | null>;
@@ -90,10 +106,12 @@ export default function Scene3D({
 }) {
   const box = useRef<HTMLDivElement>(null);
   const state = useRef<SceneState | null>(null);
-  const orbitOn = useRef(orbit);
+  const chaseOn = useRef(chase);
+  const followOn = useRef(follow);
   useEffect(() => {
-    orbitOn.current = orbit;
-  }, [orbit]);
+    chaseOn.current = chase;
+    followOn.current = follow;
+  }, [chase, follow]);
 
   // Build the scene once per track and DEM.
   useEffect(() => {
@@ -275,11 +293,19 @@ export default function Scene3D({
     };
     el.addEventListener("wheel", onWheel, { capture: true, passive: true });
 
+    // A zoom or drag while following the animal keeps the viewer's distance and angle for later plays (approach).
+    let adjusted = false;
+    const onAdjust = () => {
+      if (followOn.current) adjusted = true;
+    };
+    el.addEventListener("wheel", onAdjust, { passive: true });
+    el.addEventListener("pointerdown", onAdjust);
+
     const clock = new THREE.Clock();
-    let orbitYaw: number | null = null; // the smoothed animal yaw the orbit view last turned to
+    let chaseAtt: { yaw: number; pitch: number } | null = null; // the attitude the chase camera last turned to
     const st: SceneState = {
       renderer, scene, camera, nav, terrain, terrainZ, line, lineIdx, marker, drop, exag, frame: 0,
-      trueLen: DEFAULT_LENGTH_M * S,
+      trueLen: DEFAULT_LENGTH_M * S, cursor,
     }; // prettier-ignore
     // Scene units per screen pixel at distance d from the camera.
     const perPixel = (d: number) => (2 * d * Math.tan((camera.fov * D2R) / 2)) / (el.clientHeight || 400);
@@ -295,9 +321,34 @@ export default function Scene3D({
           // close enough that the animal, at true size, spans FOCUS_PX on screen
           void c.dollyTo(Math.max(c.minDistance, st.trueLen / perPixel(1) / FOCUS_PX), true);
         },
-        approachAnimal: () => {
-          const far = st.trueLen < MARKER_PX * perPixel(camera.position.distanceTo(st.marker.position));
-          if (far) viewRef.current?.focusAnimal();
+        approach: (mode, halfWindow, force) => {
+          if (force) adjusted = false;
+          if (adjusted) return;
+          const c = nav.controls;
+          const p = st.marker.position;
+          void c.setFocalOffset(0, 0, 0, true);
+          void c.moveTo(p.x, p.y, p.z, true);
+          if (mode === "chase") {
+            const polar = Math.PI / 2 - CHASE_ELEVATION_DEG * D2R + st.marker.rotation.x;
+            const azimuth = c.azimuthAngle + wrapAngle(st.marker.rotation.y - c.azimuthAngle); // the short way round
+            void c.rotateTo(azimuth, Math.min(Math.max(polar, c.minPolarAngle), c.maxPolarAngle), true);
+            void c.dollyTo(Math.max(c.minDistance, st.trueLen / perPixel(1) / CHASE_PX), true);
+            chaseAtt = { yaw: st.marker.rotation.y, pitch: st.marker.rotation.x };
+          } else {
+            // the farthest track point within the window, seen whole in the narrower of the two fields of view
+            const i = Math.round(st.cursor);
+            const lo = Math.max(0, i - Math.round(halfWindow));
+            const hi = Math.min(track.count - 1, i + Math.round(halfWindow));
+            const step = Math.max(1, Math.floor((hi - lo) / 500));
+            let r = 0;
+            for (let k = lo; k <= hi; k += step) {
+              const d = Math.hypot(track.east[k]! * S - p.x, -track.depth[k]! * st.exag * S - p.y, -track.north[k]! * S - p.z);
+              if (Number.isFinite(d) && d > r) r = d;
+            }
+            const half = Math.min(camera.fov * D2R, 2 * Math.atan(Math.tan((camera.fov * D2R) / 2) * camera.aspect)) / 2;
+            const fit = (r / Math.sin(half)) * ORBIT_FRAME_MARGIN;
+            void c.dollyTo(Math.max(c.minDistance, fit, st.trueLen / perPixel(1) / CHASE_PX), true);
+          }
         },
         home: () => nav.home(true),
         writeLink: () => {
@@ -312,20 +363,38 @@ export default function Scene3D({
           void c.setFocalOffset(0, 0, 0, true);
           void c.moveTo(x, y, z, true); // the camera keeps its offset from the orbit point: same distance and angle
         },
+        lookAt: (i: number) => {
+          const c = nav.controls;
+          const x = track.east[i]! * S;
+          const y = -track.depth[i]! * st.exag * S;
+          const z = -track.north[i]! * S;
+          if (!Number.isFinite(x + y + z)) return;
+          const eye = c.getPosition(new THREE.Vector3(), false);
+          if (eye.distanceTo(new THREE.Vector3(x, y, z)) < c.minDistance) return;
+          void c.setFocalOffset(0, 0, 0, true);
+          void c.setLookAt(eye.x, eye.y, eye.z, x, y, z, true); // the orbit point becomes the animal there
+        },
       };
     }
     const loop = () => {
       st.frame = requestAnimationFrame(loop);
       const dt = clock.getDelta();
-      // Orbit: the camera turns about the animal by as much as the animal's (smoothed) yaw turned since the last
-      // frame. Only the change is applied, so whatever angle the viewer drags or keys to is the one kept.
-      if (orbitOn.current) {
+      // Chase: once the animal's heading or pitch is more than CHASE_TOLERANCE_DEG from the attitude the camera last
+      // turned to, the camera turns about it to close the excess. Only the change is applied, so an angle the viewer
+      // drags to (behind, beside) is the one kept relative to the animal.
+      if (chaseOn.current) {
         const yaw = st.marker.rotation.y;
-        if (orbitYaw == null) orbitYaw = yaw;
-        const turn = Math.atan2(Math.sin(yaw - orbitYaw), Math.cos(yaw - orbitYaw)) * (1 - Math.exp(-Math.min(dt, 0.1) / ORBIT_SMOOTH_S));
-        orbitYaw += turn;
-        if (turn) void nav.controls.rotate(turn, 0, false);
-      } else orbitYaw = null;
+        const pitch = st.marker.rotation.x;
+        if (!chaseAtt) chaseAtt = { yaw, pitch };
+        const k = 1 - Math.exp(-Math.min(dt, 0.1) / CHASE_CATCHUP_S);
+        const tol = CHASE_TOLERANCE_DEG * D2R;
+        const dYaw = beyond(wrapAngle(yaw - chaseAtt.yaw), tol) * k;
+        const dPitch = beyond(pitch - chaseAtt.pitch, tol) * k;
+        chaseAtt.yaw += dYaw;
+        chaseAtt.pitch += dPitch;
+        // nose up puts the camera, behind, lower: a larger polar angle
+        if (dYaw || dPitch) void nav.controls.rotate(dYaw, dPitch, false);
+      } else chaseAtt = null;
       nav.update(dt);
       // The animal is drawn at its true length when that is at least MARKER_PX on screen, and at MARKER_PX when
       // it would be smaller, so it stays visible from kilometers away.
@@ -337,6 +406,8 @@ export default function Scene3D({
       cancelAnimationFrame(st.frame);
       ro.disconnect();
       el.removeEventListener("wheel", onWheel, { capture: true });
+      el.removeEventListener("wheel", onAdjust);
+      el.removeEventListener("pointerdown", onAdjust);
       if (viewRef) viewRef.current = null;
       nav.dispose();
       scene.traverse((o) => {
@@ -444,6 +515,7 @@ function linePositions(track: Track, idx: number[], exag: number): number[] {
 }
 
 function placeMarker(st: SceneState, track: Track, dem: Dem | null, i: number) {
+  st.cursor = i;
   const x = track.east[i]! * S;
   const y = -track.depth[i]! * st.exag * S;
   const z = -track.north[i]! * S;
@@ -456,6 +528,16 @@ function placeMarker(st: SceneState, track: Track, dem: Dem | null, i: number) {
   pos.needsUpdate = true;
   st.drop.computeLineDistances();
   st.drop.visible = !Number.isNaN(floor);
+}
+
+/** The angle in -pi..pi. */
+function wrapAngle(a: number): number {
+  return Math.atan2(Math.sin(a), Math.cos(a));
+}
+
+/** How far `x` lies outside -tol..tol (0 inside). */
+function beyond(x: number, tol: number): number {
+  return x > tol ? x - tol : x < -tol ? x + tol : 0;
 }
 
 function median(values: Float32Array): number {

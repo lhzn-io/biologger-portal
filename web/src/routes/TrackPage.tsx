@@ -11,11 +11,11 @@ import { Credits, Legend } from "../viewer/Legend";
 import { fmt, readoutAt } from "../viewer/readout";
 import Scene3D, { type SceneView } from "../viewer/Scene3D";
 import SceneControls from "../viewer/SceneControls";
-import { DEFAULT_PLAY_CAMERA, PLAY_CAMERAS, readPageLink, writePageLink, type PlayCamera } from "../viewer/link";
+import { DEFAULT_CHART_PICK, DEFAULT_PLAY_CAMERA, PLAY_CAMERAS, readPageLink, writePageLink, type ChartPick, type PlayCamera } from "../viewer/link";
 import { indexAt, loadTrack, timeOf } from "../viewer/track";
 
 const SPEEDS = [60, 600, 3600]; // seconds of track per second of playback
-const PLAY_CAMERA_LABELS: Record<PlayCamera, string> = { free: "Free", follow: "Follow", orbit: "Orbit" };
+const PLAY_CAMERA_LABELS: Record<PlayCamera, string> = { free: "Free", chase: "Chase", orbit: "Orbit" };
 
 export default function TrackPage() {
   const params = useParams();
@@ -33,11 +33,23 @@ export default function TrackPage() {
   const [speed, setSpeed] = useState<number | null>(null);
   const [follow, setFollow] = useState(initial.follow ?? false);
   const [playCam, setPlayCam] = useState<PlayCamera>(initial.play ?? DEFAULT_PLAY_CAMERA);
+  const [pick, setPick] = useState<ChartPick>(initial.pick ?? DEFAULT_CHART_PICK);
   const [basis, setBasis] = useState<DepthScale["basis"]>(initial.basis ?? "species");
   const view = useRef<SceneView | null>(null);
+  // Studio: the 3D view fills the browser window. Full screen: the browser's own full screen, of the 3D view alone.
+  const [studio, setStudio] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const sceneBox = useRef<HTMLDivElement>(null);
   const onCursor = useCallback((i: number) => setCursor(i), []);
-  // A click on a chart brings the 3D view to the animal at that time, at the distance the viewer had chosen.
-  const onPick = useCallback((i: number) => view.current?.centerOn(i), []);
+  // A click on a chart moves the cursor and, as the viewer chose, leaves the 3D camera, turns it in place to face
+  // the animal at that time, or brings it to the animal at the distance and angle the viewer had.
+  const onPick = useCallback(
+    (i: number) => {
+      if (pick === "look") view.current?.lookAt(i);
+      else if (pick === "center") view.current?.centerOn(i);
+    },
+    [pick],
+  );
 
   const tr = track.data;
   const cursor = cursorSet ?? (tr && initial.time != null ? indexAt(tr, initial.time) : 0);
@@ -46,17 +58,21 @@ export default function TrackPage() {
   const linkWrite = useRef<((p: URLSearchParams) => void) | null>(null);
   useEffect(() => {
     if (!tr) return;
-    const state = { time: timeOf(tr, cursor), exaggeration: exag, basis, follow, play: playCam };
+    const state = { time: timeOf(tr, cursor), exaggeration: exag, basis, follow, play: playCam, pick };
     linkWrite.current = (p) => writePageLink(p, state);
     const id = setTimeout(() => view.current?.writeLink(), 400);
     return () => clearTimeout(id);
-  }, [tr, cursor, exag, basis, follow, playCam]);
-  // While the track plays, Follow and Orbit hold the view on the animal: Follow keeps the viewing angle fixed to
-  // the map, Orbit keeps it fixed to the animal's heading. Pausing leaves the camera where it is, back under the
-  // viewer's own Follow setting.
+  }, [tr, cursor, exag, basis, follow, playCam, pick]);
+  // While the track plays, Chase and Orbit hold the view on the animal: Chase from behind, turning with it, Orbit
+  // at the angle the viewer sets with the mouse. Pausing leaves the camera where it is, back under the viewer's own
+  // Follow setting.
   const playing = speed != null;
   const following = follow || (playing && playCam !== "free");
-  const orbiting = playing && playCam === "orbit";
+  const chasing = playing && playCam === "chase";
+  // Orbit opens out to show the track one second of playback either side of the animal.
+  const approach = (mode: PlayCamera, atSpeed: number, force: boolean) => {
+    if (mode !== "free" && tr) view.current?.approach(mode, atSpeed * tr.manifest.rate_hz, force);
+  };
   // Animal depth colors: by default one scale for every track of the species (deepest of them, rounded up),
   // so a color means the same depth on each of their pages; "this track only" fits the track itself.
   const trackList = tracks.data;
@@ -96,12 +112,71 @@ export default function TrackPage() {
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
   }, [tr, speed]);
+  useEffect(() => {
+    const onChange = () => setFullscreen(!!sceneBox.current && document.fullscreenElement === sceneBox.current);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+  useEffect(() => {
+    if (!studio) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setStudio(false);
+    };
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden"; // no page scroll behind the studio view
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = overflow;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [studio]);
 
   if (track.isLoading) return <Loading what="the track" />;
   if (track.error || !tr) return <ErrorNote error={track.error} />;
   const r = readoutAt(tr, dem.data ?? null, cursor);
   const key = `track:${depId}:${runId}`;
   const m = tr.manifest;
+  // Play, speed and camera, under the readout and, in studio or full screen, inside the 3D view.
+  const playbar = (
+    <>
+          <Button kind="plain" onClick={() => {
+            setCursor(cursor);
+            if (speed == null) approach(playCam, SPEEDS[0]!, false);
+            setSpeed(speed == null ? SPEEDS[0]! : null);
+          }}>
+            {speed == null ? "Play" : "Pause"}
+          </Button>
+          <label className="flex items-center gap-1 text-muted">
+            Speed
+            <select className="rounded border border-line bg-surface px-1" value={speed ?? SPEEDS[0]} onChange={(e) => {
+              setCursor(cursor);
+              const next = Number(e.target.value);
+              approach(playCam, next, playing && playCam === "orbit"); // Orbit reframes for the new speed
+              setSpeed(next);
+            }}>
+              {SPEEDS.map((s) => (
+                <option key={s} value={s}>
+                  {s}x
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-1 text-muted" title="What the 3D view's camera does while the track plays. Chase follows from behind and turns with the animal; Orbit stays on the animal at the angle you set: drag, or click the view and use A/D to turn, W/S to tilt, Q/E to zoom.">
+            Camera
+            <select className="rounded border border-line bg-surface px-1" value={playCam} onChange={(e) => {
+              const next = e.target.value as PlayCamera;
+              setPlayCam(next);
+              if (speed != null) approach(next, speed, true);
+            }}>
+              {PLAY_CAMERAS.map((c) => (
+                <option key={c} value={c}>
+                  {PLAY_CAMERA_LABELS[c]}
+                </option>
+              ))}
+            </select>
+          </label>
+    </>
+  );
 
   return (
     <div className="space-y-4">
@@ -132,40 +207,7 @@ export default function TrackPage() {
           <Item label="From start fix" value={`${fmt(r.north_m / 1000, 2)} km N, ${fmt(r.east_m / 1000, 2)} km E`} />
         </dl>
         <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
-          <Button kind="plain" onClick={() => {
-            setCursor(cursor);
-            if (speed == null && playCam !== "free") view.current?.approachAnimal();
-            setSpeed(speed == null ? SPEEDS[0]! : null);
-          }}>
-            {speed == null ? "Play" : "Pause"}
-          </Button>
-          <label className="flex items-center gap-1 text-muted">
-            Speed
-            <select className="rounded border border-line bg-surface px-1" value={speed ?? SPEEDS[0]} onChange={(e) => {
-              setCursor(cursor);
-              setSpeed(Number(e.target.value));
-            }}>
-              {SPEEDS.map((s) => (
-                <option key={s} value={s}>
-                  {s}x
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex items-center gap-1 text-muted" title="What the 3D view's camera does while the track plays. Follow keeps the angle fixed to the map; Orbit keeps it fixed to the animal's heading. Drag, or click the view and use A/D to turn, W/S to tilt, Q/E to zoom.">
-            Camera
-            <select className="rounded border border-line bg-surface px-1" value={playCam} onChange={(e) => {
-              const next = e.target.value as PlayCamera;
-              setPlayCam(next);
-              if (playing && next !== "free") view.current?.approachAnimal();
-            }}>
-              {PLAY_CAMERAS.map((c) => (
-                <option key={c} value={c}>
-                  {PLAY_CAMERA_LABELS[c]}
-                </option>
-              ))}
-            </select>
-          </label>
+          {playbar}
           {dem.isLoading && <span className="text-xs text-muted">Fetching topobathymetry (the first view of a track can take up to a minute)...</span>}
           {dem.error && <span className="text-xs text-bad">No terrain: {dem.error.message}</span>}
           {dem.data && (
@@ -177,11 +219,18 @@ export default function TrackPage() {
       </CollectPanel>
 
       <CollectPanel id={`${key}:scene`} title={`3D view, ${depId}`} text={() => mapText(tr, dem.data ?? null, exag, scale, species)}>
-        <div className="relative h-[36rem]">
-          <Scene3D track={tr} dem={dem.data ?? null} cursor={cursor} exaggeration={exag} depthMax={scale.max} follow={following} orbit={orbiting} species={species} viewRef={view} linkWrite={linkWrite} />
+        <div ref={sceneBox} className={studio ? "fixed inset-0 z-[100] bg-[#0b1220]" : "relative h-[36rem] bg-[#0b1220]"}>
+          <Scene3D track={tr} dem={dem.data ?? null} cursor={cursor} exaggeration={exag} depthMax={scale.max} follow={following} chase={chasing} species={species} viewRef={view} linkWrite={linkWrite} />
           <Legend depth={scale} species={species} />
           <SceneControls
             onFocus={() => view.current?.focusAnimal()}
+            studio={studio}
+            onStudio={() => setStudio(!studio)}
+            fullscreen={fullscreen}
+            onFullscreen={() => {
+              if (document.fullscreenElement) void document.exitFullscreen();
+              else void sceneBox.current?.requestFullscreen();
+            }}
             onHome={() => {
               setFollow(false);
               if (playing) setPlayCam("free");
@@ -196,11 +245,19 @@ export default function TrackPage() {
             }}
             basis={basis}
             onBasis={setBasis}
+            pick={pick}
+            onPick={setPick}
             speciesScale={scales.ofSpecies}
             trackScale={scales.track}
             species={species}
           />
           <Credits />
+          {(studio || fullscreen) && (
+            <div className="absolute bottom-2 left-2 flex flex-wrap items-center gap-3 rounded border border-line bg-panel/90 px-2 py-1 text-sm">
+              {playbar}
+              <span className="font-mono text-xs text-muted">{r.time_utc} UTC</span>
+            </div>
+          )}
         </div>
       </CollectPanel>
 
