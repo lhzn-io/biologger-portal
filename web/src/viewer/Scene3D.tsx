@@ -150,16 +150,31 @@ export default function Scene3D({
       const pos = new Float32Array(cols * rows * 3);
       const col = new Float32Array(cols * rows * 3);
       terrainZ = new Float32Array(cols * rows);
+      // Each vertex is the mean of a step x step block of cells (NaN ignored), placed at the block's center: taking
+      // every step-th cell instead aliases fine relief and survey texture into ribs on steep slopes.
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
           const gx = c * step;
           const gy = r * step;
-          const z = dem.grid[gy * width + gx]!;
+          const bx = Math.min(step, width - gx);
+          const by = Math.min(step, height - gy);
+          let sum = 0;
+          let count = 0;
+          for (let y = gy; y < gy + by; y++) {
+            for (let x = gx; x < gx + bx; x++) {
+              const v = dem.grid[y * width + x]!;
+              if (!Number.isNaN(v)) {
+                sum += v;
+                count++;
+              }
+            }
+          }
+          const z = count ? sum / count : NaN;
           const k = r * cols + c;
           terrainZ[k] = z;
-          pos[k * 3] = xOf(w + ((gx + 0.5) * (e - w)) / width);
+          pos[k * 3] = xOf(w + ((gx + bx / 2) * (e - w)) / width);
           pos[k * 3 + 1] = Number.isNaN(z) ? 0 : z * exag * S;
-          pos[k * 3 + 2] = zOf(n - ((gy + 0.5) * (n - s)) / height);
+          pos[k * 3 + 2] = zOf(n - ((gy + by / 2) * (n - s)) / height);
           const rgb = elevationColor(z);
           col.set(rgb, k * 3);
         }

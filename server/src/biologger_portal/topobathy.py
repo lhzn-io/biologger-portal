@@ -32,7 +32,7 @@ TIMEOUT = httpx.Timeout(connect=5.0, read=120.0, write=10.0, pool=130.0)
 
 # Track bounding box margin: a fraction of the span on each side, at least this many degrees.
 MARGIN_FRACTION = 0.5
-MARGIN_MIN_DEG = 0.05
+MARGIN_MIN_DEG = 0.15
 
 
 class TopobathyError(Exception):
