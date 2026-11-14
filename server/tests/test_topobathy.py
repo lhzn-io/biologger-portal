@@ -40,7 +40,7 @@ def make_client(settings: Settings, fake: FakeTopobathykit, prefetch: bool = Fal
 
 
 def test_track_bbox_has_a_margin() -> None:
-    assert track_bbox({"lat": [35.51, 35.52], "lon": [-45.52, -45.51]}) == (-45.54, 35.49, -45.49, 35.54)
+    assert track_bbox({"lat": [35.51, 35.52], "lon": [-45.52, -45.51]}) == (-45.57, 35.46, -45.46, 35.57)
     assert track_bbox({}) is None
 
 
@@ -49,7 +49,7 @@ def test_terrain_is_fetched_once_and_cached(settings: Settings) -> None:
     client = make_client(settings, fake)
     terrain = client.get("/api/tracks/WHOI.900_20250101/run-1/terrain").json()
     assert terrain["dataset"] == "112bafb5_30m" and terrain["max_dim"] == 1024
-    assert "bbox=-45.5400,35.4900,-45.4900,35.5400" in terrain["meta_url"]
+    assert "bbox=-45.5700,35.4600,-45.4600,35.5700" in terrain["meta_url"]
 
     first = client.get(terrain["meta_url"])
     second = client.get(terrain["meta_url"])
