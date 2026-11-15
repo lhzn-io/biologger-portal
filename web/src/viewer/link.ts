@@ -17,11 +17,13 @@ export interface PageLink {
 
 /** The 3D view's track colors: the animal's depth, or its ODBA (body acceleration, an activity measure). */
 export type TrackColor = "depth" | "odba";
+/** Tracks are colored by ODBA unless the viewer picks depth (or the bundle has no ODBA). */
+export const DEFAULT_TRACK_COLOR: TrackColor = "odba";
 
 /** A chart click moves the cursor and: leaves the camera (lock), turns it in place to face the animal (look), or moves it to center the animal (center). */
 export type ChartPick = "lock" | "look" | "center";
 export const CHART_PICKS: ChartPick[] = ["lock", "look", "center"];
-export const DEFAULT_CHART_PICK: ChartPick = "center";
+export const DEFAULT_CHART_PICK: ChartPick = "lock";
 
 /**
  * The camera during playback: left where it is (free), behind the animal turning with it (chase), or on the animal
@@ -51,7 +53,8 @@ export function readPageLink(search: string): PageLink {
   if (PLAY_CAMERAS.includes(play as PlayCamera)) out.play = play as PlayCamera;
   const pick = p.get("pick");
   if (CHART_PICKS.includes(pick as ChartPick)) out.pick = pick as ChartPick;
-  if (p.get("color") === "odba") out.color = "odba";
+  const color = p.get("color");
+  if (color === "depth" || color === "odba") out.color = color;
   return out;
 }
 
@@ -67,6 +70,6 @@ export function writePageLink(params: URLSearchParams, s: Required<PageLink>): v
   else params.delete("play");
   if (s.pick !== DEFAULT_CHART_PICK) params.set("pick", s.pick);
   else params.delete("pick");
-  if (s.color === "odba") params.set("color", "odba");
+  if (s.color !== DEFAULT_TRACK_COLOR) params.set("color", s.color);
   else params.delete("color");
 }

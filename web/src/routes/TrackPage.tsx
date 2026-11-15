@@ -12,7 +12,7 @@ import { fmt, readoutAt } from "../viewer/readout";
 import Scene3D, { type SceneView } from "../viewer/Scene3D";
 import SceneControls from "../viewer/SceneControls";
 import { odbaScale } from "../viewer/activity";
-import { DEFAULT_CHART_PICK, DEFAULT_PLAY_CAMERA, PLAY_CAMERAS, readPageLink, writePageLink, type ChartPick, type PlayCamera, type TrackColor } from "../viewer/link";
+import { DEFAULT_CHART_PICK, DEFAULT_PLAY_CAMERA, DEFAULT_TRACK_COLOR, PLAY_CAMERAS, readPageLink, writePageLink, type ChartPick, type PlayCamera, type TrackColor } from "../viewer/link";
 import { indexAt, loadTrack, timeOf } from "../viewer/track";
 
 const SPEEDS = [60, 600, 3600]; // seconds of track per second of playback
@@ -35,7 +35,7 @@ export default function TrackPage() {
   const [follow, setFollow] = useState(initial.follow ?? false);
   const [playCam, setPlayCam] = useState<PlayCamera>(initial.play ?? DEFAULT_PLAY_CAMERA);
   const [pick, setPick] = useState<ChartPick>(initial.pick ?? DEFAULT_CHART_PICK);
-  const [trackColor, setTrackColor] = useState<TrackColor>(initial.color ?? "depth");
+  const [trackColor, setTrackColor] = useState<TrackColor>(initial.color ?? DEFAULT_TRACK_COLOR);
   const [basis, setBasis] = useState<DepthScale["basis"]>(initial.basis ?? "species");
   const view = useRef<SceneView | null>(null);
   // Studio: the 3D view fills the browser window. Full screen: the browser's own full screen, of the 3D view alone.
