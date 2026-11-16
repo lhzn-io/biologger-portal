@@ -7,13 +7,15 @@ The portal runs in two halves on the fleet host that holds the canonical dataset
   on the lab network and over the WireGuard VPN at ``http://garnet.internal:8797``. Nothing routes to it from the
   internet.
 - **The published viewer** is a static snapshot of the reviewed tracks, served by Cloudflare as Workers static
-  assets at ``https://whoi-mpg.lhzn.io`` behind Cloudflare Access (one-time PIN login, lab allow-list). No Worker
-  code runs.
+  assets at ``https://whoi-mpg.lhzn.io`` behind Cloudflare Access (one-time PIN login, lab allow-list). Worker
+  code runs only for ``/api/*``: the visit log, written by the viewer and read by the hub with a service token
+  allowed only on ``/api/admin/*``.
 
 The hub
 -------
 
-1. Settings: copy ``deploy/portal.env.example`` to ``deploy/portal.env`` and fill it in.
+1. Settings: copy ``deploy/portal.env.example`` to ``~/.config/biologger-portal/portal.env`` (outside the
+   repo, ``chmod 600``) and fill it in. It holds the Access service token that reads the visit log.
 2. Container (OrbStack): ``docker compose -f deploy/compose.yaml up -d --build``. Check
    ``curl -s http://garnet.internal:8797/api/health``. The container restarts with OrbStack.
 3. Catalog: ``docker exec biologger-portal /app/server/.venv/bin/biologger-portal import`` reads the metadata

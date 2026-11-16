@@ -1,10 +1,12 @@
 # The published viewer: the web app (built with VITE_PUBLISHED=1) plus the snapshot under /data/v1/, served as
-# Workers static assets. No Worker code runs; Cloudflare Access in front of the custom domain decides who reads.
+# Workers static assets; Cloudflare Access in front of the custom domain decides who reads. Worker code
+# (worker/index.ts) runs only for /api/*: the visit log, written by the viewer and read by the hub.
 # The Cloudflare account comes from CLOUDFLARE_ACCOUNT_ID (publish.sh reads it from ~/.config/biologger-portal/env).
 name = "whoi-mpg-portal"
 compatibility_date = "2026-10-01"
 workers_dev = false # the custom domain is the only address, so Access always applies
 preview_urls = false
+main = "worker/index.ts"
 
 # Cloudflare creates and manages the DNS record for a custom domain; no other record may hold the name.
 routes = [{ pattern = "whoi-mpg.lhzn.io", custom_domain = true }]
@@ -14,3 +16,22 @@ routes = [{ pattern = "whoi-mpg.lhzn.io", custom_domain = true }]
 directory = "../../web/dist-published"
 # Client-side routes (/deployments/<id>, /matrix) have no file of their own: serve index.html.
 not_found_handling = "single-page-application"
+binding = "ASSETS"
+run_worker_first = ["/api/*"]
+
+# The visit log (migrations/). publish.sh applies the migrations before each deploy.
+[[d1_databases]]
+binding = "VISITS"
+database_name = "whoi-mpg-visits"
+database_id = "47ec6f14-e2a1-4a4f-a9e9-aad4d248477b"
+migrations_dir = "migrations"
+
+# Daily: delete visit rows older than 180 days.
+[triggers]
+crons = ["17 4 * * *"]
+
+[vars]
+# The Access team host, and the audience tag of the Access application on whoi-mpg.lhzn.io/api/admin/*
+# (service token only). An empty ADMIN_AUD keeps the admin read closed.
+ACCESS_TEAM_DOMAIN = "longhorizon.cloudflareaccess.com"
+ADMIN_AUD = "5ed6c1ad4826e793f41ce69a96b9a997a6974f08fea465b7ce03a3fd991b8823"

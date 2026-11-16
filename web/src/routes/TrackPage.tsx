@@ -11,6 +11,7 @@ import { Credits, Legend } from "../viewer/Legend";
 import { fmt, readoutAt } from "../viewer/readout";
 import Scene3D, { type SceneView } from "../viewer/Scene3D";
 import SceneControls from "../viewer/SceneControls";
+import { logVisit } from "../lib/visits";
 import { odbaScale } from "../viewer/activity";
 import { DEFAULT_CHART_PICK, DEFAULT_PLAY_CAMERA, DEFAULT_TRACK_COLOR, PLAY_CAMERAS, readPageLink, writePageLink, type ChartPick, type PlayCamera, type TrackColor } from "../viewer/link";
 import { indexAt, loadTrack, timeOf } from "../viewer/track";
@@ -146,7 +147,10 @@ export default function TrackPage() {
     <>
           <Button kind="plain" onClick={() => {
             setCursor(cursor);
-            if (speed == null) approach(playCam, SPEEDS[0]!, false);
+            if (speed == null) {
+              approach(playCam, SPEEDS[0]!, false);
+              logVisit("action", "play", { speed: SPEEDS[0]!, camera: playCam });
+            }
             setSpeed(speed == null ? SPEEDS[0]! : null);
           }}>
             {speed == null ? "Play" : "Pause"}
@@ -157,6 +161,7 @@ export default function TrackPage() {
               setCursor(cursor);
               const next = Number(e.target.value);
               approach(playCam, next, playing && playCam === "orbit"); // Orbit reframes for the new speed
+              logVisit("action", "speed", { speed: next });
               setSpeed(next);
             }}>
               {SPEEDS.map((s) => (
@@ -171,6 +176,7 @@ export default function TrackPage() {
             <select className="rounded border border-line bg-surface px-1" value={playCam} onChange={(e) => {
               const next = e.target.value as PlayCamera;
               setPlayCam(next);
+              logVisit("action", "camera", { camera: next });
               if (speed != null) approach(next, speed, true);
             }}>
               {PLAY_CAMERAS.map((c) => (
@@ -230,9 +236,13 @@ export default function TrackPage() {
           <SceneControls
             onFocus={() => view.current?.focusAnimal()}
             studio={studio}
-            onStudio={() => setStudio(!studio)}
+            onStudio={() => {
+              logVisit("action", "studio", { on: !studio });
+              setStudio(!studio);
+            }}
             fullscreen={fullscreen}
             onFullscreen={() => {
+              logVisit("action", "fullscreen", { on: !document.fullscreenElement });
               if (document.fullscreenElement) void document.exitFullscreen();
               else void sceneBox.current?.requestFullscreen();
             }}
@@ -251,9 +261,15 @@ export default function TrackPage() {
             basis={basis}
             onBasis={setBasis}
             pick={pick}
-            onPick={setPick}
+            onPick={(p) => {
+              logVisit("action", "chart_pick", { pick: p });
+              setPick(p);
+            }}
             trackColor={trackColor}
-            onTrackColor={setTrackColor}
+            onTrackColor={(c) => {
+              logVisit("action", "track_color", { color: c });
+              setTrackColor(c);
+            }}
             hasOdba={activity != null}
             speciesScale={scales.ofSpecies}
             trackScale={scales.track}

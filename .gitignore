@@ -3,6 +3,7 @@ node_modules/
 dist/
 dist-published/
 .venv/
+.wrangler/
 __pycache__/
 *.py[cod]
 .pytest_cache/

@@ -1,7 +1,8 @@
 #!/bin/bash
 # The daily run on the fleet host (launchd: deploy/launchd/io.lhzn.biologger-portal-daily.plist).
 #
-# 1. Scans the datasets folder in the hub container, so files copied in by rsync reach the catalog.
+# 1. Scans the datasets folder in the hub container, so files copied in by rsync reach the catalog, and copies
+#    new rows of the live viewer's visit log into the catalog.
 # 2. Republishes the viewer (deploy/cloudflare/publish.sh) only when the snapshot's content or the checked-out
 #    commit changed since the last publish; otherwise it does nothing.
 #
@@ -17,6 +18,8 @@ export PORTAL_DATASETS_ROOT="${PORTAL_DATASETS_ROOT:-$HOME/Projects/whoi-mpg/dat
 
 echo "== $(date -u +%Y-%m-%dT%H:%M:%SZ) daily run"
 docker exec biologger-portal /app/server/.venv/bin/biologger-portal scan
+# The live viewer's visit log, for the hub's Visitors page (skipped until the Access service token is set).
+docker exec biologger-portal /app/server/.venv/bin/biologger-portal pull-visits || echo "visit log not pulled"
 
 SNAP="$(mktemp -d)"
 trap 'rm -rf "$SNAP"' EXIT

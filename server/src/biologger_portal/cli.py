@@ -17,6 +17,7 @@ from .importers import import_all
 from .jobs import Jobs
 from .settings import get_settings
 from .topobathy import TopobathyProxy
+from .visits import pull_visits
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -42,6 +43,7 @@ def main(argv: list[str] | None = None) -> None:
         "publish", help="Write the published snapshot (reviewed tracks, catalog) as static files"
     )
     pub.add_argument("--out", help="Output folder (default .portal/publish)")
+    sub.add_parser("pull-visits", help="Copy new rows of the live viewer's visit log into the catalog")
     args = parser.parse_args(argv)
 
     if args.command == "serve":
@@ -88,6 +90,8 @@ def main(argv: list[str] | None = None) -> None:
                 f"{m['deployments']} deployments, {len(m['tracks'])} tracks, {len(m['files'])} files "
                 f"({size / 1e6:.1f} MB) in {out}; content {m['content_sha256'][:12]}"
             )
+        elif args.command == "pull-visits":
+            print(json.dumps(pull_visits(catalog, settings), indent=2))
         elif args.command == "layout":
             root = settings.datasets_root
             if args.action == "plan":

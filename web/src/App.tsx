@@ -11,6 +11,8 @@ import Matrix from "./routes/Matrix";
 import Overview from "./routes/Overview";
 import Placeholder from "./routes/Placeholder";
 import Register from "./routes/Register";
+import Visitors from "./routes/Visitors";
+import { useVisitLog } from "./lib/visits";
 
 // The viewer pulls in three.js and MapLibre; load it only when a track is opened.
 const TrackPage = lazy(() => import("./routes/TrackPage"));
@@ -20,10 +22,12 @@ const NAV = [
   { to: "/deployments", label: "Deployments" },
   { to: "/matrix", label: "Files" },
   { to: "/register", label: "Register", hub: true },
+  { to: "/visitors", label: "Visitors", hub: true },
 ];
 
 export default function App() {
   useCollectTray();
+  useVisitLog();
   const published = isPublished();
   return (
     <div className="flex min-h-screen flex-col">
@@ -71,9 +75,19 @@ export default function App() {
               )
             }
           />
+          <Route
+            path="/visitors"
+            element={published ? <Placeholder title="Not found" note="No page at this address." /> : <Visitors />}
+          />
           <Route path="*" element={<Placeholder title="Not found" note="No page at this address." />} />
         </Routes>
       </main>
+      {published && (
+        <footer className="border-t border-line px-4 py-2 text-xs text-muted">
+          Page views and a few actions (play, copy) are recorded with your sign-in email for the portal maintainers and
+          deleted after 180 days.
+        </footer>
+      )}
     </div>
   );
 }

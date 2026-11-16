@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     topobathy_max_dim: int = 1024
     # Fetch every track's terrain after a scan, so the first view does not wait 30 to 60 s.
     topobathy_prefetch: bool = True
+    # The live viewer's visit log (its Worker's admin read) and the Access service token that may read it.
+    visits_url: str = "https://whoi-mpg.lhzn.io/api/admin/visits"
+    cf_access_client_id: str = ""
+    cf_access_client_secret: str = ""
 
     @property
     def portal_dir(self) -> Path:

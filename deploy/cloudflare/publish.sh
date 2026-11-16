@@ -96,6 +96,7 @@ fi
 
 # 5. Deploy. On the first deploy, the shell goes up alone until Access is seen answering for the new domain.
 cd "$REPO/deploy/cloudflare"
+npx --yes "$WRANGLER" d1 migrations apply whoi-mpg-visits --remote # the visit log's tables (idempotent)
 if [ "$FIRST" = 1 ]; then
   HELD="$(mktemp -d)"
   mv "$REPO/web/dist-published/data" "$HELD/data"

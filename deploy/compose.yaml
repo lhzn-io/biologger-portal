@@ -3,7 +3,7 @@
 # The hub is reached on the lab network and over the WireGuard VPN at http://garnet.internal:8797; nothing routes
 # to it from the internet. Without Cloudflare Access in front, every visitor is anonymous and read-only (editor
 # sign-in on the VPN is planned). The public side is the published viewer (deploy/cloudflare/). Settings come
-# from deploy/portal.env (not committed; see deploy/portal.env.example).
+# from ~/.config/biologger-portal/portal.env, outside the repo (see deploy/portal.env.example).
 services:
   portal:
     build:
@@ -14,7 +14,7 @@ services:
     ports:
       - "8797:8797"
     env_file:
-      - portal.env
+      - ${HOME}/.config/biologger-portal/portal.env
     environment:
       PORTAL_DATASETS_ROOT: /data
       PORTAL_WEB_DIST: /app/web/dist
