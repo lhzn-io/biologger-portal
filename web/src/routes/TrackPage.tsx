@@ -13,10 +13,10 @@ import Scene3D, { type SceneView } from "../viewer/Scene3D";
 import SceneControls from "../viewer/SceneControls";
 import { logVisit } from "../lib/visits";
 import { odbaScale } from "../viewer/activity";
+import { advance, DEFAULT_SPEED, parseSpeed, SPEED_STEPS, speedLabel, stepSpeed } from "../viewer/playback";
 import { DEFAULT_CHART_PICK, DEFAULT_PLAY_CAMERA, DEFAULT_TRACK_COLOR, PLAY_CAMERAS, readPageLink, writePageLink, type ChartPick, type PlayCamera, type TrackColor } from "../viewer/link";
 import { indexAt, loadTrack, timeOf } from "../viewer/track";
 
-const SPEEDS = [60, 600, 3600]; // seconds of track per second of playback
 const PLAY_CAMERA_LABELS: Record<PlayCamera, string> = { free: "Free", chase: "Chase", orbit: "Orbit" };
 
 export default function TrackPage() {
@@ -29,10 +29,15 @@ export default function TrackPage() {
   const tracks = useTracks();
   // A shared link (see viewer/link.ts) sets the opening state; the camera in it is vantagekit's.
   const [initial] = useState(() => readPageLink(location.search));
-  // Null until the viewer moves the cursor: until then it sits at the link's time, or the start.
+  // Null until the viewer moves the cursor: until then it sits at the link's time, or the start. Playback moves it
+  // between samples (a fractional index), so slow playback is smooth; the readout and charts use the sample at or
+  // before it.
   const [cursorSet, setCursor] = useState<number | null>(null);
   const [exag, setExag] = useState(initial.exaggeration ?? 5);
-  const [speed, setSpeed] = useState<number | null>(null);
+  const [playing, setPlaying] = useState(false);
+  // Playback speed in seconds of track per second, and the text being typed into the speed box (null when idle).
+  const [speed, setSpeed] = useState(initial.speed ?? DEFAULT_SPEED);
+  const [speedText, setSpeedText] = useState<string | null>(null);
   const [follow, setFollow] = useState(initial.follow ?? false);
   const [playCam, setPlayCam] = useState<PlayCamera>(initial.play ?? DEFAULT_PLAY_CAMERA);
   const [pick, setPick] = useState<ChartPick>(initial.pick ?? DEFAULT_CHART_PICK);
@@ -55,21 +60,21 @@ export default function TrackPage() {
   );
 
   const tr = track.data;
-  const cursor = cursorSet ?? (tr && initial.time != null ? indexAt(tr, initial.time) : 0);
+  const pos = cursorSet ?? (tr && initial.time != null ? indexAt(tr, initial.time) : 0);
+  const cursor = Math.floor(pos);
   // The URL follows the view: the camera is written as it settles, the rest here once changes pause (playback
   // writes when it stops), so the address bar can be copied to share this moment and view.
   const linkWrite = useRef<((p: URLSearchParams) => void) | null>(null);
   useEffect(() => {
     if (!tr) return;
-    const state = { time: timeOf(tr, cursor), exaggeration: exag, basis, follow, play: playCam, pick, color: trackColor };
+    const state = { time: timeOf(tr, cursor), exaggeration: exag, basis, follow, play: playCam, pick, color: trackColor, speed };
     linkWrite.current = (p) => writePageLink(p, state);
     const id = setTimeout(() => view.current?.writeLink(), 400);
     return () => clearTimeout(id);
-  }, [tr, cursor, exag, basis, follow, playCam, pick, trackColor]);
+  }, [tr, cursor, exag, basis, follow, playCam, pick, trackColor, speed]);
   // While the track plays, Chase and Orbit hold the view on the animal: Chase from behind, turning with it, Orbit
   // at the angle the viewer sets with the mouse. Pausing leaves the camera where it is, back under the viewer's own
   // Follow setting.
-  const playing = speed != null;
   const following = follow || (playing && playCam !== "free");
   const chasing = playing && playCam === "chase";
   // Orbit opens out to show the track one second of playback either side of the animal.
@@ -98,17 +103,17 @@ export default function TrackPage() {
   const activity = useMemo(() => (tr ? odbaScale(tr) : null), [tr]);
   const byOdba = trackColor === "odba" && activity != null;
   useEffect(() => {
-    if (!tr || speed == null) return;
+    if (!tr || !playing) return;
     let last = performance.now();
     let frame = 0;
     const step = (now: number) => {
-      const dt = (now - last) / 1000;
+      // at most a quarter second per frame, so a tab left in the background does not jump ahead when it returns
+      const dt = Math.min((now - last) / 1000, 0.25);
       last = now;
       setCursor((prev) => {
-        const c = prev ?? 0; // Play and Speed set the cursor first
-        const next = c + Math.max(1, Math.round(dt * speed * tr.manifest.rate_hz));
+        const next = advance(prev ?? 0, dt, speed, tr.manifest.rate_hz); // Play and Speed set the cursor first
         if (next >= tr.count - 1) {
-          setSpeed(null);
+          setPlaying(false);
           return tr.count - 1;
         }
         return next;
@@ -117,7 +122,7 @@ export default function TrackPage() {
     };
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
-  }, [tr, speed]);
+  }, [tr, playing, speed]);
   useEffect(() => {
     const onChange = () => setFullscreen(!!sceneBox.current && document.fullscreenElement === sceneBox.current);
     document.addEventListener("fullscreenchange", onChange);
@@ -142,42 +147,74 @@ export default function TrackPage() {
   const r = readoutAt(tr, dem.data ?? null, cursor);
   const key = `track:${depId}:${runId}`;
   const m = tr.manifest;
+  // A new speed applies at once, playing or paused; while playing, Orbit reframes for it.
+  const applySpeed = (next: number) => {
+    setSpeedText(null);
+    if (next === speed) return;
+    setCursor(pos);
+    if (playing) approach(playCam, next, playCam === "orbit");
+    logVisit("action", "speed", { speed: next });
+    setSpeed(next);
+  };
+  const commitSpeed = () => {
+    if (speedText == null) return;
+    const v = parseSpeed(speedText);
+    if (v == null) setSpeedText(null);
+    else applySpeed(v);
+  };
+  const speedBad = speedText != null && parseSpeed(speedText) == null;
+  const stepButton = "rounded border border-line px-1.5 font-mono text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40";
   // Play, speed and camera, under the readout and, in studio or full screen, inside the 3D view.
   const playbar = (
     <>
           <Button kind="plain" onClick={() => {
-            setCursor(cursor);
-            if (speed == null) {
-              approach(playCam, SPEEDS[0]!, false);
-              logVisit("action", "play", { speed: SPEEDS[0]!, camera: playCam });
+            setCursor(pos);
+            if (!playing) {
+              approach(playCam, speed, false);
+              logVisit("action", "play", { speed, camera: playCam });
             }
-            setSpeed(speed == null ? SPEEDS[0]! : null);
+            setPlaying(!playing);
           }}>
-            {speed == null ? "Play" : "Pause"}
+            {playing ? "Pause" : "Play"}
           </Button>
-          <label className="flex items-center gap-1 text-muted">
+          <span className="flex items-center gap-1 text-muted" title="Seconds of track per second of playback (1x is real time). Type a speed from 0.1 to 86400 and press Enter, or step with the buttons or the up and down arrow keys.">
             Speed
-            <select className="rounded border border-line bg-surface px-1" value={speed ?? SPEEDS[0]} onChange={(e) => {
-              setCursor(cursor);
-              const next = Number(e.target.value);
-              approach(playCam, next, playing && playCam === "orbit"); // Orbit reframes for the new speed
-              logVisit("action", "speed", { speed: next });
-              setSpeed(next);
-            }}>
-              {SPEEDS.map((s) => (
-                <option key={s} value={s}>
-                  {s}x
-                </option>
-              ))}
-            </select>
-          </label>
+            <button type="button" className={stepButton} aria-label="Slower" disabled={speed <= SPEED_STEPS[0]!} onClick={() => applySpeed(stepSpeed(speed, -1))}>
+              -
+            </button>
+            <input
+              type="text"
+              inputMode="decimal"
+              aria-label="Playback speed, seconds of track per second"
+              className={`w-14 rounded border bg-surface px-1 text-right font-mono text-ink ${speedBad ? "border-bad" : "border-line"}`}
+              value={speedText ?? speedLabel(speed)}
+              onChange={(e) => setSpeedText(e.target.value)}
+              onBlur={commitSpeed}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  commitSpeed();
+                  e.currentTarget.blur();
+                } else if (e.key === "Escape") {
+                  setSpeedText(null);
+                  e.currentTarget.blur();
+                } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                  e.preventDefault();
+                  applySpeed(stepSpeed(speed, e.key === "ArrowUp" ? 1 : -1));
+                }
+              }}
+            />
+            x
+            <button type="button" className={stepButton} aria-label="Faster" disabled={speed >= SPEED_STEPS[SPEED_STEPS.length - 1]!} onClick={() => applySpeed(stepSpeed(speed, 1))}>
+              +
+            </button>
+          </span>
           <label className="flex items-center gap-1 text-muted" title="What the 3D view's camera does while the track plays. Chase follows from behind and turns with the animal; Orbit stays on the animal at the angle you set: drag, or click the view and use A/D to turn, W/S to tilt, Q/E to zoom.">
             Camera
             <select className="rounded border border-line bg-surface px-1" value={playCam} onChange={(e) => {
               const next = e.target.value as PlayCamera;
               setPlayCam(next);
               logVisit("action", "camera", { camera: next });
-              if (speed != null) approach(next, speed, true);
+              if (playing) approach(next, speed, true);
             }}>
               {PLAY_CAMERAS.map((c) => (
                 <option key={c} value={c}>
@@ -231,7 +268,7 @@ export default function TrackPage() {
 
       <CollectPanel id={`${key}:scene`} title={`3D view, ${depId}`} text={() => mapText(tr, dem.data ?? null, exag, scale, species, byOdba ? activity : null)}>
         <div ref={sceneBox} className={studio ? "fixed inset-0 z-[100] bg-[#0b1220]" : "relative h-[36rem] bg-[#0b1220]"}>
-          <Scene3D track={tr} dem={dem.data ?? null} cursor={cursor} exaggeration={exag} colorBy={byOdba ? "odba" : "depth"} colorMax={byOdba ? activity.max : scale.max} follow={following} chase={chasing} species={species} viewRef={view} linkWrite={linkWrite} />
+          <Scene3D track={tr} dem={dem.data ?? null} cursor={pos} exaggeration={exag} colorBy={byOdba ? "odba" : "depth"} colorMax={byOdba ? activity.max : scale.max} follow={following} chase={chasing} species={species} viewRef={view} linkWrite={linkWrite} />
           <Legend depth={byOdba ? null : scale} activity={byOdba ? activity : null} species={species} />
           <SceneControls
             onFocus={() => view.current?.focusAnimal()}

@@ -1,5 +1,7 @@
 /** The track page's state in its URL, beside the camera vantagekit writes (cv, cam, cf), so a view can be shared. */
 
+import { DEFAULT_SPEED, SPEED_RANGE } from "./playback";
+
 /** What the page restores from a shared link. Unset fields keep the page defaults. */
 export interface PageLink {
   /** Cursor time, Unix seconds. */
@@ -13,6 +15,8 @@ export interface PageLink {
   pick?: ChartPick;
   /** What the 3D view's track is colored by. */
   color?: TrackColor;
+  /** Playback speed: seconds of track per second of playback. */
+  speed?: number;
 }
 
 /** The 3D view's track colors: the animal's depth, or its ODBA (body acceleration, an activity measure). */
@@ -55,6 +59,8 @@ export function readPageLink(search: string): PageLink {
   if (CHART_PICKS.includes(pick as ChartPick)) out.pick = pick as ChartPick;
   const color = p.get("color");
   if (color === "depth" || color === "odba") out.color = color;
+  const speed = Number(p.get("speed"));
+  if (p.has("speed") && speed >= SPEED_RANGE[0] && speed <= SPEED_RANGE[1]) out.speed = speed;
   return out;
 }
 
@@ -72,4 +78,6 @@ export function writePageLink(params: URLSearchParams, s: Required<PageLink>): v
   else params.delete("pick");
   if (s.color !== DEFAULT_TRACK_COLOR) params.set("color", s.color);
   else params.delete("color");
+  if (s.speed !== DEFAULT_SPEED) params.set("speed", String(s.speed));
+  else params.delete("speed");
 }

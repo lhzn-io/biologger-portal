@@ -7,9 +7,11 @@ import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { createVantage, type Vantage } from "../vendor/vantagekit/vantagekit-three.js";
 import { activityColor, LINE_POINTS, segmentMeans } from "./activity";
 import { loadAnimalModel } from "./animal";
+import { angleAt, valueAt } from "./playback";
 import { elevationAt, elevationColor, trackDepthColor, type Dem } from "./dem";
 import type { TrackColor } from "./link";
 import { EARTH_RADIUS_M, strideIndices, type Track } from "./track";
+import { holdViewForWheel } from "./wheel";
 
 /** Scene units are 100 m (vantagekit metersPerUnit), as in topobathykit's DEM viewer. */
 const S = 0.01;
@@ -30,7 +32,7 @@ interface SceneState {
   exag: number;
   frame: number;
   trueLen: number; // the animal's true length in scene units
-  cursor: number; // the sample the marker is placed at
+  cursor: number; // where the marker is placed: a sample index, fractional between samples
 }
 
 /** Length (m) assumed for the stand-in marker when no species model is loaded. */
@@ -291,25 +293,29 @@ export default function Scene3D({
     // stretch of track elsewhere slowed to a crawl far from anything. So when a zoom gesture starts, the orbit
     // point slides along the line of sight to the depth of whatever is under the cursor; the view does not
     // move, and the zoom then slows only as the camera nears what it is heading for. This listener captures
-    // on the container, so it runs before camera-controls handles the same event on the canvas.
+    // on the container, so it runs before camera-controls handles the same event on the canvas. The slide is
+    // made at once, from the camera's present pose, never eased: see holdViewForWheel for how an eased one
+    // threw the view sideways.
     const ray = new THREE.Raycaster();
     let lastWheel = -Infinity;
     const onWheel = (e: WheelEvent) => {
       const fresh = e.timeStamp - lastWheel > WHEEL_GESTURE_MS;
       lastWheel = e.timeStamp;
       if (!fresh || nav.mode !== "orbit" || nav.pivot !== "free") return;
-      const r = renderer.domElement.getBoundingClientRect();
-      if (!(r.width > 0 && r.height > 0)) return;
-      ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
-      const hit = ray.intersectObjects(terrain ? [marker, line, terrain] : [marker, line], true)[0];
-      if (!hit) return;
       const c = nav.controls;
-      const eye = c.getPosition(new THREE.Vector3(), true);
-      const dir = c.getTarget(new THREE.Vector3(), true).sub(eye).normalize();
-      const along = hit.point.clone().sub(eye).dot(dir);
-      if (!(along > c.minDistance)) return;
-      const t = eye.clone().addScaledVector(dir, along);
-      void c.setLookAt(eye.x, eye.y, eye.z, t.x, t.y, t.z, true);
+      let along: number | null = null;
+      const r = renderer.domElement.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) {
+        ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
+        const hit = ray.intersectObjects(terrain ? [marker, line, terrain] : [marker, line], true)[0];
+        if (hit) {
+          const eye = c.getPosition(new THREE.Vector3(), false);
+          const dir = c.getTarget(new THREE.Vector3(), false).sub(eye).normalize();
+          const d = hit.point.clone().sub(eye).dot(dir);
+          if (d > c.minDistance) along = d;
+        }
+      }
+      holdViewForWheel(c, along);
     };
     el.addEventListener("wheel", onWheel, { capture: true, passive: true });
 
@@ -535,14 +541,19 @@ function linePositions(track: Track, idx: number[], exag: number): number[] {
   return out;
 }
 
-function placeMarker(st: SceneState, track: Track, dem: Dem | null, i: number) {
-  st.cursor = i;
-  const x = track.east[i]! * S;
-  const y = -track.depth[i]! * st.exag * S;
-  const z = -track.north[i]! * S;
+/** Places the animal at playback position `at`, interpolated between samples so slow playback moves smoothly. */
+function placeMarker(st: SceneState, track: Track, dem: Dem | null, at: number) {
+  st.cursor = at;
+  const x = valueAt(track.east, at) * S;
+  const y = -valueAt(track.depth, at) * st.exag * S;
+  const z = -valueAt(track.north, at) * S;
   st.marker.position.set(x, y, z);
-  st.marker.rotation.set((track.pitch[i]! || 0) * D2R, -(track.heading[i]! || 0) * D2R, -(track.roll[i]! || 0) * D2R);
-  const floor = dem ? elevationAt(dem, track.lat[i]!, track.lon[i]!) : NaN;
+  st.marker.rotation.set(
+    (valueAt(track.pitch, at) || 0) * D2R,
+    -(angleAt(track.heading, at) || 0) * D2R,
+    -(angleAt(track.roll, at) || 0) * D2R,
+  );
+  const floor = dem ? elevationAt(dem, valueAt(track.lat, at), valueAt(track.lon, at)) : NaN;
   const pos = st.drop.geometry.getAttribute("position") as THREE.BufferAttribute;
   pos.setXYZ(0, x, y, z);
   pos.setXYZ(1, x, Number.isNaN(floor) ? y : floor * st.exag * S, z);
