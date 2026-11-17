@@ -9,21 +9,22 @@ from typing import Annotated, Any
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
-from ..auth import User, require_user
+from ..auth import User, require_editor
 from ..visits import VisitsNotConfigured, configured, pull_visits, summary
 
 router = APIRouter(tags=["visits"])
-Reader = Annotated[User, Depends(require_user)]
+# Visitor emails are personal data: editors only.
+Editor = Annotated[User, Depends(require_editor)]
 REFRESH_EVERY_S = 60
 
 
 @router.get("/visits")
-def get_visits(request: Request, user: Reader, days: int = Query(30, ge=1, le=180)) -> dict[str, Any]:
+def get_visits(request: Request, user: Editor, days: int = Query(30, ge=1, le=180)) -> dict[str, Any]:
     return {"configured": configured(request.app.state.settings), **summary(request.app.state.catalog, days)}
 
 
 @router.post("/visits/refresh")
-def refresh_visits(request: Request, user: Reader) -> dict[str, Any]:
+def refresh_visits(request: Request, user: Editor) -> dict[str, Any]:
     state = request.app.state
     last = getattr(state, "visits_refreshed_at", 0.0)
     if time.monotonic() - last < REFRESH_EVERY_S:

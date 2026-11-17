@@ -41,8 +41,8 @@ def _run_out(row: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.get("/me")
-def me(user: Reader) -> dict[str, Any]:
-    return {"email": user.email, "editor": user.editor}
+def me(request: Request, user: Reader) -> dict[str, Any]:
+    return {"email": user.email, "editor": user.editor, "signin_url": request.app.state.settings.signin_url}
 
 
 @router.get("/deployments")

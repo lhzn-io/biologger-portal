@@ -21,20 +21,21 @@ const NAV = [
   { to: "/", label: "Overview" },
   { to: "/deployments", label: "Deployments" },
   { to: "/matrix", label: "Files" },
-  { to: "/register", label: "Register", hub: true },
-  { to: "/visitors", label: "Visitors", hub: true },
+  { to: "/register", label: "Register", hub: true, editor: true },
+  { to: "/visitors", label: "Visitors", hub: true, editor: true },
 ];
 
 export default function App() {
   useCollectTray();
   useVisitLog();
   const published = isPublished();
+  const editor = useMe().data?.editor ?? false;
   return (
     <div className="flex min-h-screen flex-col">
       <header className="flex items-center gap-6 border-b border-line bg-panel px-4 py-3">
         <span className="font-semibold">WHOI-MPG Biologger Portal</span>
         <nav className="flex gap-4 text-sm">
-          {NAV.filter((n) => !(published && n.hub)).map((n) => (
+          {NAV.filter((n) => !(published && n.hub) && !(n.editor && !editor)).map((n) => (
             <NavLink
               key={n.to}
               to={n.to}
@@ -77,7 +78,9 @@ export default function App() {
           />
           <Route
             path="/visitors"
-            element={published ? <Placeholder title="Not found" note="No page at this address." /> : <Visitors />}
+            element={
+              published || !editor ? <Placeholder title="Not found" note="No page at this address." /> : <Visitors />
+            }
           />
           <Route path="*" element={<Placeholder title="Not found" note="No page at this address." />} />
         </Routes>
@@ -95,6 +98,16 @@ export default function App() {
 function WhoAmI() {
   const me = useMe().data;
   if (!me) return null;
+  if (!me.editor && me.signin_url) {
+    return (
+      <span className="text-xs text-muted">
+        read only.{" "}
+        <a className="text-accent hover:underline" href={me.signin_url}>
+          Editor sign-in
+        </a>
+      </span>
+    );
+  }
   return (
     <span className="text-xs text-muted">
       {me.email}

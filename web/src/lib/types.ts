@@ -116,4 +116,6 @@ export interface Matrix {
 export interface Me {
   email: string;
   editor: boolean;
+  /** Where editors sign in (the hub behind the tunnel); empty when not configured. */
+  signin_url?: string;
 }

@@ -40,15 +40,26 @@ def test_edit_requires_editor_and_is_audited(client: TestClient, settings: Setti
     assert anon.patch("/api/deployments/RED900_20220101", json={"fields": {"notes": "x"}}).status_code == 403
 
 
-def test_access_token_required_when_configured(settings: Settings) -> None:
+def test_access_configured_reads_open_writes_need_a_valid_token(settings: Settings) -> None:
     app = create_app(
         Settings(
             datasets_root=settings.datasets_root,
             access_team_domain="https://t.cloudflareaccess.com",
             access_aud="aud",
+            editors=["editor@example.org"],
+            signin_url="https://hub.example.org",
         )
     )
-    assert TestClient(app).get("/api/deployments").status_code == 401
+    c = TestClient(app)
+    # No token: the hub read on the VPN, anonymous and read-only.
+    assert c.get("/api/deployments").status_code == 200
+    me = c.get("/api/me").json()
+    assert me == {"email": "anonymous", "editor": False, "signin_url": "https://hub.example.org"}
+    assert c.patch("/api/deployments/RED900_20220101", json={"fields": {"notes": "x"}}).status_code == 403
+    assert c.get("/api/visits").status_code == 403
+    # A token that fails verification is refused, not treated as anonymous.
+    bad = {"Cf-Access-Jwt-Assertion": "not-a-jwt"}
+    assert c.get("/api/deployments", headers=bad).status_code == 401
 
 
 def test_validation_runs_light_inline_and_deep_in_background(client: TestClient) -> None:

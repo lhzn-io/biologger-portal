@@ -22,8 +22,10 @@ The hub
    sheets and scans the datasets folder; it also fetches each track's terrain from topobathykit, which takes about
    30 to 60 s per new track. Later, ``... biologger-portal scan`` picks up files copied in with rsync.
 
-Every visitor to the hub is anonymous and read-only for now: editors are recognized from the signed
-``Cf-Access-Jwt-Assertion`` header, which only Cloudflare Access supplies. Editor sign-in on the VPN is planned.
+Editors sign in through the hub's tunnel hostname, behind Cloudflare Access: the signed
+``Cf-Access-Jwt-Assertion`` header names them, and ``PORTAL_EDITORS`` lists who may edit. Reading the hub
+directly on the VPN (``garnet.internal:8797``) is anonymous and read-only: no registration, uploads,
+simulation runs or visitor log. A token that fails verification is refused.
 
 The published viewer
 --------------------

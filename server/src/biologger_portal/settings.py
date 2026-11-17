@@ -21,8 +21,10 @@ class Settings(BaseSettings):
     # Both empty means local development, where writes are allowed only from the loopback interface.
     access_team_domain: str = ""
     access_aud: str = ""
-    # Emails allowed to edit metadata and register files; everyone admitted by Access can read.
+    # Emails allowed to edit metadata, register files and run simulations; anyone can read.
     editors: list[str] = []
+    # Where editors sign in: the hub's address behind the tunnel and Access (shown to anonymous readers).
+    signin_url: str = ""
     # Local development only: act as this user (with edit rights) when Access is not configured.
     dev_user: str = ""
     # Largest upload part the server accepts; Cloudflare caps proxied request bodies at 100 MB.

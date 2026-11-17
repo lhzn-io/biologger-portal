@@ -3,10 +3,12 @@
 
 """Who is asking: the Cloudflare Access identity, and whether they may edit.
 
-In production every request arrives through the Cloudflare Tunnel with a signed
-``Cf-Access-Jwt-Assertion`` header. The token is verified against the Access team's public keys and
-the application's audience tag; its ``email`` claim is the user. Without Access settings (local
-development) the user is ``PORTAL_DEV_USER`` if set, else anonymous and read-only.
+Editors sign in through the Cloudflare Tunnel, where Access adds a signed ``Cf-Access-Jwt-Assertion``
+header. The token is verified against the Access team's public keys and the application's audience
+tag; its ``email`` claim is the user, an editor if listed in ``PORTAL_EDITORS``. A request without a
+token (the hub read directly on the lab VPN) is anonymous and read-only; a token that fails
+verification is refused. Without Access settings (local development) the user is
+``PORTAL_DEV_USER`` if set, else anonymous and read-only.
 """
 
 from dataclasses import dataclass
@@ -35,7 +37,7 @@ def identify(request: Request) -> User:
     if settings.access_team_domain and settings.access_aud:
         token = request.headers.get("cf-access-jwt-assertion") or request.cookies.get("CF_Authorization")
         if not token:
-            raise HTTPException(status_code=401, detail="Cloudflare Access token missing")
+            return User(email="anonymous", editor=False)
         try:
             key = _jwks_client(settings.access_team_domain).get_signing_key_from_jwt(token)
             claims = jwt.decode(
