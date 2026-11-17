@@ -1,9 +1,10 @@
 # The biologger-portal hub on the fleet host (OrbStack): docker compose -f deploy/compose.yaml up -d --build
 #
-# The hub is reached on the lab network and over the WireGuard VPN at http://garnet.internal:8797; nothing routes
-# to it from the internet. Without Cloudflare Access in front, every visitor is anonymous and read-only (editor
-# sign-in on the VPN is planned). The public side is the published viewer (deploy/cloudflare/). Settings come
-# from ~/.config/biologger-portal/portal.env, outside the repo (see deploy/portal.env.example).
+# The hub is read on the lab network and over the WireGuard VPN at http://garnet.internal:8797, anonymous and
+# read-only; simulation runners use it there with tokens of their own. Editors and agent scripts come through the
+# Cloudflare Tunnel (the cloudflared service) at https://whoi-mpg-hub.lhzn.io, where Cloudflare Access signs them
+# in. Settings come from ~/.config/biologger-portal/portal.env and the tunnel's token from tunnel.env beside it,
+# both outside the repo (see deploy/portal.env.example and deploy/tunnel.env.example).
 services:
   portal:
     build:
@@ -24,3 +25,15 @@ services:
     extra_hosts:
       # topobathykit runs on the host; containers reach it by this name.
       - "garnet.internal:host-gateway"
+
+  # The tunnel connector. The tunnel and its public hostname (whoi-mpg-hub.lhzn.io -> http://portal:8797) are
+  # managed in the Cloudflare dashboard; only its token lives here, in a file the portal container never reads.
+  cloudflared:
+    image: cloudflare/cloudflared:2026.11.1
+    container_name: biologger-portal-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    env_file:
+      - ${HOME}/.config/biologger-portal/tunnel.env
+    depends_on:
+      - portal

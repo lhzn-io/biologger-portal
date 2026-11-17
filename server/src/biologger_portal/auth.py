@@ -5,9 +5,11 @@
 
 Editors sign in through the Cloudflare Tunnel, where Access adds a signed ``Cf-Access-Jwt-Assertion``
 header. The token is verified against the Access team's public keys and the application's audience
-tag; its ``email`` claim is the user, an editor if listed in ``PORTAL_EDITORS``. A request without a
-token (the hub read directly on the lab VPN) is anonymous and read-only; a token that fails
-verification is refused. Without Access settings (local development) the user is
+tag; its ``email`` claim is the user, an editor if listed in ``PORTAL_EDITORS``. Scripts come through
+with an Access service token instead: its JWT names the token's client ID (``common_name``) and no
+email, and a client ID listed in ``PORTAL_AGENTS`` as ``name:client_id`` acts as the editor
+``agent:<name>``; other service tokens are refused. A request without a token (the hub read directly
+on the lab VPN) is anonymous and read-only; a token that fails verification is refused. Without Access settings (local development) the user is
 ``PORTAL_DEV_USER`` if set, else anonymous and read-only.
 """
 
@@ -50,12 +52,24 @@ def identify(request: Request) -> User:
         except jwt.PyJWTError as exc:
             raise HTTPException(status_code=401, detail=f"Cloudflare Access token rejected: {exc}") from exc
         email = str(claims.get("email", "")).lower()
-        if not email:
-            raise HTTPException(status_code=401, detail="Cloudflare Access token has no email")
-        return User(email=email, editor=email in editors)
+        if email:
+            return User(email=email, editor=email in editors)
+        client_id = str(claims.get("common_name", ""))
+        if client_id:
+            return _agent(settings, client_id)
+        raise HTTPException(status_code=401, detail="Cloudflare Access token has no email or service token")
     if settings.dev_user:
         return User(email=settings.dev_user, editor=True)
     return User(email="anonymous", editor=False)
+
+
+def _agent(settings: Settings, client_id: str) -> User:
+    """The agent a service token's client ID is listed as, or 403."""
+    for entry in settings.agents:
+        name, _, listed = entry.partition(":")
+        if name.strip() and listed.strip() == client_id:
+            return User(email=f"agent:{name.strip()}", editor=True)
+    raise HTTPException(status_code=403, detail="this Access service token is not one of the hub's agents")
 
 
 def require_user(request: Request) -> User:

@@ -18,6 +18,7 @@ The prototype that preceded this rebuild is preserved at the tag `prototype-v0`.
 - **Validation:** checks each tag data file by reading it: sample rates per channel, gaps, units, time zones, and the deployment window. A file that cannot be read fails with the reason; no result is ever filled in.
 - **Registration (hub only):** upload a file to a deployment, create a deployment, or import a metadata sheet. Large files are better copied to the host with rsync and picked up by a scan.
 - **Simulation runs (hub only):** queue [biologger-sim](https://github.com/lhzn-io/biologger-sim) runs for one deployment or a batch, from a run profile per tag type. Runners on the fleet hosts claim the jobs and send back track bundles, which the hub checks against the config it stored before indexing them.
+- **Agent API (hub only):** scripts drive the hub as named editors through the tunnel, each with its own Cloudflare Access service token: queue runs, wait on them, and use the rest of the API listed at `/api/docs`.
 - **Track viewer:** each deployment's track as reconstructed by [biologger-sim](https://github.com/lhzn-io/biologger-sim), drawn in 3D over fused bathymetry from topobathykit.
   - The animal is drawn with a model of its species, posed by pitch and roll.
   - Playback runs at 60, 600 or 3600 s of track per second, with a Chase camera that follows the animal's heading or an Orbit camera you steer around it.
@@ -100,7 +101,7 @@ cd deploy/cloudflare/worker && ../../../web/node_modules/.bin/tsc -p tsconfig.js
 
 Both forms run from the fleet host that holds the datasets folder:
 
-- **Hub:** the container from `deploy/compose.yaml`, at `http://garnet.internal:8797` on the lab network and the VPN. Visitors are anonymous and read-only until editor sign-in lands. Its settings, including the Access service token that reads the visit log, live outside the repository in `~/.config/biologger-portal/portal.env`.
+- **Hub:** the container from `deploy/compose.yaml`, at `http://garnet.internal:8797` on the lab network and the VPN. Read there, it is anonymous and read-only; editors and agent scripts sign in through the Cloudflare Tunnel at `https://whoi-mpg-hub.lhzn.io`, behind Cloudflare Access. Its settings, including the Access service token that reads the visit log, live outside the repository in `~/.config/biologger-portal/portal.env`.
 - **Published viewer:** `https://whoi-mpg.lhzn.io`, deployed by `deploy/cloudflare/publish.sh`. The script refuses to deploy unless Cloudflare Access already protects the host. `deploy/daily.sh` scans, pulls the visit log, and republishes when the snapshot or the commit has changed.
 
 ```bash

@@ -27,6 +27,53 @@ Editors sign in through the hub's tunnel hostname, behind Cloudflare Access: the
 directly on the VPN (``garnet.internal:8797``) is anonymous and read-only: no registration, uploads,
 simulation runs or visitor log. Simulation runners use tokens of their own (see below). A token that fails verification is refused.
 
+Tunnel and Access
+-----------------
+
+The ``cloudflared`` service in ``deploy/compose.yaml`` connects garnet to a Cloudflare Tunnel managed in the
+dashboard; nothing on garnet is opened to the internet. One-time setup, in Cloudflare Zero Trust:
+
+1. Networks > Tunnels > Create a tunnel (Cloudflared), named ``biologger-portal-hub``. Copy its token into
+   ``~/.config/biologger-portal/tunnel.env`` as ``TUNNEL_TOKEN=`` (from ``deploy/tunnel.env.example``,
+   ``chmod 600``). Add the public hostname ``whoi-mpg-hub.lhzn.io`` with service ``http://portal:8797``; this
+   also makes the DNS record.
+2. Access > Applications > Add a self-hosted application on ``whoi-mpg-hub.lhzn.io`` with two policies: Allow,
+   for the maintainers' emails, and Service Auth, for the agent scripts' service tokens.
+3. In ``portal.env``: ``PORTAL_ACCESS_TEAM_DOMAIN`` (``https://<team>.cloudflareaccess.com``),
+   ``PORTAL_ACCESS_AUD`` (the application's audience tag), ``PORTAL_EDITORS``, ``PORTAL_SIGNIN_URL``
+   (``https://whoi-mpg-hub.lhzn.io``) and ``PORTAL_AGENTS`` (below). Then
+   ``docker compose -f deploy/compose.yaml up -d --build``.
+
+Check: ``curl -m 15 -sI https://whoi-mpg-hub.lhzn.io`` without signing in answers with a redirect to the Access
+login, and ``curl -m 15 http://garnet.internal:8797/api/me`` on the VPN says ``anonymous``.
+
+Agent API
+---------
+
+Scripts drive the hub as editors through the tunnel hostname, each with a Cloudflare Access service token of
+its own (Access > Service credentials). The secret stays on the machine that runs the script; the hub lists
+only the client ID, in ``PORTAL_AGENTS`` as ``["<name>:<client id>"]``, and records what the script does as
+``agent:<name>``. A service token the hub does not list is refused even when Access lets it through.
+
+``/api/agent`` has the calls a script needs most; everything else is the API the web app uses, listed at
+``https://whoi-mpg-hub.lhzn.io/api/docs``::
+
+    H="https://whoi-mpg-hub.lhzn.io"
+    AUTH=(-H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET")
+
+    # The catalog's size, the run queue by status, and when each runner last reported.
+    curl -m 30 -s "${AUTH[@]}" "$H/api/agent/status"
+
+    # Queue a run for each deployment that can run; the others come back with their reasons.
+    curl -m 30 -s "${AUTH[@]}" -H "Content-Type: application/json" \
+      -d '{"deployment_ids": ["<deployment id>"], "rate_hz": 1}' "$H/api/agent/runs"
+
+    # A run, waiting up to 120 s for it to finish.
+    curl -m 150 -s "${AUTH[@]}" "$H/api/agent/runs/<job id>?wait=120"
+
+Check a batch first with ``POST /api/sim/batches`` and ``"dry_run": true``; cancel and retry are
+``POST /api/sim/jobs/<id>/cancel`` and ``/retry``.
+
 Simulation runners
 ------------------
 

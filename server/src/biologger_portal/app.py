@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse
 from . import __version__
 from .db import Catalog
 from .jobs import Jobs
-from .routes import catalog, health, runner, sheets, sim, topobathy, tracks, uploads, visits
+from .routes import agent, catalog, health, runner, sheets, sim, topobathy, tracks, uploads, visits
 from .settings import Settings, get_settings
 from .topobathy import TopobathyProxy
 
@@ -57,6 +57,7 @@ def create_app(
     app.include_router(visits.router, prefix="/api")
     app.include_router(sim.router)
     app.include_router(runner.router)
+    app.include_router(agent.router)
 
     dist = settings.web_dist
     if dist is not None and (dist / "index.html").is_file():
