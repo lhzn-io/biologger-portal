@@ -13,6 +13,7 @@ dependencies = [
   "numpy>=1.26",
   "pandas>=2.2",
   "PyJWT[crypto]>=2.9",
+  "pyyaml>=6.0",
   # The lab's standard-export loader and georeference, so the portal reads files as the simulator does.
   "biologger-sim",
 ]
@@ -28,6 +29,7 @@ dev = [
   "pytest>=8.3",
   "ruff>=0.8",
   "mypy>=1.13",
+  "types-PyYAML>=6.0",
 ]
 
 [build-system]

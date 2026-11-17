@@ -6,6 +6,7 @@ import ValidationRunView from "../components/ValidationRunView";
 import { sendJson, uploadFile } from "../lib/api";
 import { bytes } from "../lib/format";
 import { useDeployments, useMe, useValidationRun } from "../lib/queries";
+import { SimSetupPanel } from "./SimSetup";
 
 interface PreviewRow {
   deployment_id: string;
@@ -16,6 +17,7 @@ interface PreviewRow {
 
 export default function Register() {
   const me = useMe().data;
+  const [setupDep, setSetupDep] = useState("");
   if (me && !me.editor) {
     return (
       <Panel title="Register">
@@ -25,8 +27,9 @@ export default function Register() {
   }
   return (
     <div className="space-y-4">
+      <NewDeploymentPanel onCreated={setSetupDep} />
       <UploadPanel />
-      <NewDeploymentPanel />
+      <SimSetupPanel dep={setupDep} setDep={setSetupDep} />
       <SheetPanel />
     </div>
   );
@@ -90,12 +93,29 @@ function UploadPanel() {
   );
 }
 
-function NewDeploymentPanel() {
+const NEW_FIELDS = {
+  deployment_id: "",
+  species: "",
+  common_name: "",
+  location_name: "",
+  bodylogger1_type: "",
+  time_start_utc: "",
+  start_lat: "",
+  start_lon: "",
+  time_end_utc: "",
+  end_lat: "",
+  end_lon: "",
+};
+
+function NewDeploymentPanel({ onCreated }: { onCreated: (id: string) => void }) {
   const invalidate = useInvalidateCatalog();
-  const [fields, setFields] = useState({ deployment_id: "", species: "", common_name: "", location_name: "", time_start_utc: "", start_lat: "", start_lon: "" });
+  const [fields, setFields] = useState(NEW_FIELDS);
   const create = useMutation({
     mutationFn: () => sendJson<{ id: string }>("/api/deployments", "POST", { fields }),
-    onSuccess: invalidate,
+    onSuccess: (d) => {
+      invalidate();
+      onCreated(d.id);
+    },
   });
   return (
     <Panel title="New deployment">
@@ -106,7 +126,7 @@ function NewDeploymentPanel() {
             <input
               className="rounded border border-line bg-surface px-2 py-1"
               value={fields[k as keyof typeof fields]}
-              placeholder={k === "time_start_utc" ? "8/27/25 23:33 or ISO 8601" : ""}
+              placeholder={k.startsWith("time_") ? "8/27/25 23:33 or ISO 8601, UTC" : k === "bodylogger1_type" ? "big Axy, TDR10, ..." : ""}
               onChange={(e) => setFields({ ...fields, [k]: e.target.value })}
             />
           </label>
@@ -122,6 +142,10 @@ function NewDeploymentPanel() {
           </Link>
         )}
       </div>
+      <p className="mt-2 text-xs text-muted">
+        The tag type suggests a simulation profile. A run needs the start fix and both times; the end fix pins the track to
+        where the animal was found.
+      </p>
       {create.error && <ErrorNote error={create.error} />}
     </Panel>
   );

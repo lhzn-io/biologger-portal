@@ -1,0 +1,47 @@
+# Copyright (c) 2026 Long Horizon Observatory
+# Licensed under the Apache License, Version 2.0. See LICENSE file for details.
+#
+# A biologger-sim run profile: the processing choices for one kind of tag, with the deployment's
+# details filled in by the hub (see server/src/biologger_portal/sim_config.py). ${...} values are
+# placeholders; the rest is the biologger-sim LAB config for the run's single entity.
+
+title: Big Axy, lab standard export
+description: >-
+  Axy accelerometer and magnetometer read from the lab's standard export (datetime_utc, depth_m,
+  accelX_total_raw, ...; the accelerometer in g, scaled to m/s^2 on load). The accelerometer already
+  follows the R convention, and the depth-linear offset seen on these tags is removed before the
+  attachment angles are computed.
+# bodylogger1_type values (case-insensitive) for which this profile is suggested.
+tag_types: [big axy, small axy, axy]
+# File kinds (the hub's file grid) that can be the run's input.
+accepts: [standard]
+# A regular expression found in the first 4 kB of a file this profile can read.
+signature: accelX_total_raw
+config:
+  mode: LAB
+  simulation:
+    playback_speed: 1.0
+    loop: false
+    meta_file: ${meta_file}
+    entities:
+      - sim_id: ${sim_id}
+        tag_id: ${tag_id}
+        sampling_rate_hz: 25.0
+        clock_source: fixed_frequency
+        input_file: ${input_file}
+        calibration:
+          compute_attachment_angles: true
+          compute_mag_offsets: true
+          sensor_signs: r_script
+          accel_depth_bias: true
+        depth_estimation:
+          algorithm: acausal_interpolate
+        dead_reckoning:
+          # auto: pinned to the fixes when the deployment has an end fix, else plain dead reckoning.
+          track_model: ${track_model}
+        ahrs:
+          enabled: false
+  zmq:
+    port: 5555
+    host: "0.0.0.0"
+    topic: "biologger/telemetry"

@@ -1,0 +1,43 @@
+# Copyright (c) 2026 Long Horizon Observatory
+# Licensed under the Apache License, Version 2.0. See LICENSE file for details.
+#
+# A biologger-sim run profile: the processing choices for one kind of tag, with the deployment's
+# details filled in by the hub (see server/src/biologger_portal/sim_config.py). ${...} values are
+# placeholders; the rest is the biologger-sim LAB config for the run's single entity.
+
+title: MK10 / TDR10 tag, raw vendor CSV, signs negated
+description: >-
+  Wildlife Computers tag read from its raw CSV at 16 Hz. The accelerometer reports specific force
+  and the magnetometer reads opposite to the field, the reverse of what the R script assumes, so
+  both are negated; read as recorded, pitch has the wrong sign and the heading is mirrored.
+tag_types: [tdr10, mk10, mk9, otz biologger]
+accepts: [raw]
+# A regular expression found in the first 4 kB of a file this profile can read.
+signature: '^; Mk1?\d '
+config:
+  mode: LAB
+  simulation:
+    playback_speed: 1.0
+    loop: false
+    meta_file: ${meta_file}
+    entities:
+      - sim_id: ${sim_id}
+        tag_id: ${tag_id}
+        sampling_rate_hz: 16.0
+        clock_source: fixed_frequency
+        input_file: ${input_file}
+        calibration:
+          compute_attachment_angles: true
+          compute_mag_offsets: true
+          sensor_signs: negated
+        depth_estimation:
+          algorithm: acausal_interpolate
+        dead_reckoning:
+          # auto: pinned to the fixes when the deployment has an end fix, else plain dead reckoning.
+          track_model: ${track_model}
+        ahrs:
+          enabled: false
+  zmq:
+    port: 5555
+    host: "0.0.0.0"
+    topic: "biologger/telemetry"

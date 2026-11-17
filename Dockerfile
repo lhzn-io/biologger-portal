@@ -29,8 +29,10 @@ RUN uv sync --frozen --no-dev
 FROM python:3.12-slim
 COPY --from=server /app/server /app/server
 COPY --from=web /src/web/dist /app/web/dist
+COPY configs/sim-profiles/ /app/configs/sim-profiles/
 
 ENV PORTAL_WEB_DIST=/app/web/dist \
-    PORTAL_DATASETS_ROOT=/data
+    PORTAL_DATASETS_ROOT=/data \
+    PORTAL_SIM_PROFILES_DIR=/app/configs/sim-profiles
 EXPOSE 8797
 CMD ["/app/server/.venv/bin/biologger-portal", "serve", "--host", "0.0.0.0", "--port", "8797"]
