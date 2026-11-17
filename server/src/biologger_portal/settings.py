@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     dev_user: str = ""
     # Simulation run profiles (configs/sim-profiles in the repo; the container sets its own copy).
     sim_profiles_dir: Path = Path(__file__).resolve().parents[3] / "configs" / "sim-profiles"
+    # Simulation runners: "name:sha256-of-token" per runner; the tokens themselves stay on the runners.
+    runner_tokens: list[str] = []
     # Largest upload part the server accepts; Cloudflare caps proxied request bodies at 100 MB.
     upload_part_bytes: int = 64 * 1024 * 1024
     # Grid size of a track's terrain crop (the longer side, in cells); 1024 is 4 MB of Float32.

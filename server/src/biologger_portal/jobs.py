@@ -44,6 +44,20 @@ class Jobs:
         """After each scan, fetch the terrain of tracks whose crop is not cached yet."""
         self._topobathy = (proxy, max_dim)
 
+    def prefetch_terrain_soon(self) -> None:
+        """Fetches the terrain of new tracks on the worker (after a simulation run lands a bundle)."""
+        if self._topobathy is None:
+            return
+        proxy, max_dim = self._topobathy
+
+        def run() -> None:
+            try:
+                prefetch_tracks(self.catalog, proxy, max_dim)
+            except TopobathyError as exc:  # the viewer fetches it on first view instead
+                log.warning("terrain prefetch failed: %s", exc.detail)
+
+        self._pool.submit(run)
+
     def shutdown(self) -> None:
         self._pool.shutdown(wait=False, cancel_futures=True)
 
