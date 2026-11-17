@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 from conftest import write_track
 from fastapi.testclient import TestClient
 
@@ -39,18 +40,36 @@ def new_job(c: TestClient, **extra: Any) -> dict[str, Any]:
     return r.json()  # type: ignore[no-any-return]
 
 
+def resolved(job: dict[str, Any], **entity: Any) -> bytes:
+    """The job's config as biologger-sim writes it for a run: defaults added, legacy keys mapped away."""
+    cfg = yaml.safe_load(job["config_yaml"])
+    ent = cfg["simulation"]["entities"][0]
+    ent["calibration"].pop("compute_attachment_angles", None)
+    ent["calibration"]["attachment_angle_mode"] = "batch_compute"
+    ent["sampling_rate_hz"] = int(ent["sampling_rate_hz"])  # 25 for 25.0: the same setting
+    ent.update(entity)
+    cfg["publish_zmq"] = False
+    return yaml.safe_dump(cfg).encode()
+
+
 def bundle(
-    tmp_path: Path, job: dict[str, Any], run_id: str, *, config_hash: str | None = None
+    tmp_path: Path,
+    job: dict[str, Any],
+    run_id: str,
+    *,
+    config_hash: str | None = None,
+    config: bytes | None = None,
 ) -> dict[str, bytes]:
     folder = tmp_path / "out" / run_id
     write_track(folder, job["deployment_id"], run_id)
+    (folder / "config.yaml").write_bytes(config if config is not None else resolved(job))
     meta = json.loads((folder / "track.json").read_text())
     meta["data"] = {"file": "track.f32", "bytes": (folder / "track.f32").stat().st_size}
     meta["provenance"]["config_sha256"] = (
-        config_hash or hashlib.sha256(job["config_yaml"].encode()).hexdigest()
+        config_hash or hashlib.sha256((folder / "config.yaml").read_bytes()).hexdigest()
     )
     (folder / "track.json").write_text(json.dumps(meta))
-    return {n: (folder / n).read_bytes() for n in ("track.json", "track.f32", "track.geojson")}
+    return {n: (folder / n).read_bytes() for n in ("track.json", "track.f32", "track.geojson", "config.yaml")}
 
 
 def upload(c: TestClient, job_id: int, files: dict[str, bytes]) -> None:
@@ -121,6 +140,8 @@ def test_a_run_lands_as_a_track(hub: TestClient, tmp_path: Path) -> None:
     assert done.json()["run_id"] == "20261117-120000_test-run"
     row = hub.get(f"/api/sim/jobs/{jid}").json()
     assert row["status"] == "done" and row["log_tail"] == "finished" and row["backend_used"] == "cpu"
+    landed = hub.app.state.settings.datasets_root / DEP / "tracks" / "20261117-120000_test-run"  # type: ignore[attr-defined]
+    assert (landed / "config.yaml").is_file()  # the resolved config stays with the track
     assert any(t["run_id"] == "20261117-120000_test-run" for t in hub.get("/api/tracks").json())
     # The job is over: the runner's next calls are refused.
     assert hub.post(f"/api/runner/jobs/{jid}/heartbeat", json=hb, headers=AUTH).status_code == 409
@@ -150,6 +171,13 @@ def test_bundles_are_checked_against_the_job(hub: TestClient, tmp_path: Path) ->
     r = hub.post(f"/api/runner/jobs/{jid}/finish", json={}, headers=AUTH)
     assert r.status_code == 422 and "config_sha256" in r.text
     assert not (hub.app.state.settings.datasets_root / DEP / "tracks" / "run-x").exists()  # type: ignore[attr-defined]
+    # A resolved config that ran other settings than the job's is refused.
+    new_job(hub)
+    jid = hub.post("/api/runner/claim", json={"backends": ["cpu"]}, headers=AUTH).json()["id"]
+    other = resolved(full, calibration={"sensor_signs": "negated"}, input_file="other.csv")
+    upload(hub, jid, bundle(tmp_path / "3", full, "run-y", config=other))
+    r = hub.post(f"/api/runner/jobs/{jid}/finish", json={}, headers=AUTH)
+    assert r.status_code == 422 and "input_file" in r.text and "sensor_signs" in r.text
     assert hub.put(f"/api/runner/jobs/{jid}/bundle/evil.sh", content=b"x", headers=AUTH).status_code in (
         409,
         422,

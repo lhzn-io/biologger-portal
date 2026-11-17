@@ -1,0 +1,56 @@
+[project]
+name = "biologger-portal-runner"
+version = "0.1.0"
+description = "Runs biologger-sim jobs from the WHOI-MPG biologger portal's queue and sends back the track bundles"
+license = "Apache-2.0"
+authors = [{ name = "Long Horizon Observatory" }]
+requires-python = ">=3.12"
+dependencies = [
+  "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+# The simulator, installed beside the runner (garnet). A runner that uses a checkout's own
+# environment (coriolis) points PORTAL_RUNNER_SIM at that environment's biologger-sim instead.
+#
+# pandas 3 reads almost none of an MK10 export's rows in biologger-sim's CSV-to-Feather step (the
+# python engine skips the rows with a trailing event column), so the simulator runs on pandas 2 here.
+sim = ["biologger-sim", "pandas>=2.2,<3"]
+
+[tool.uv.sources]
+biologger-sim = { git = "https://github.com/lhzn-io/biologger-sim", rev = "af51867" }
+
+[project.scripts]
+biologger-portal-runner = "biologger_portal_runner.cli:main"
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3",
+  "ruff>=0.8",
+  "mypy>=1.13",
+]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/biologger_portal_runner"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tests"]
+addopts = "-ra -q"

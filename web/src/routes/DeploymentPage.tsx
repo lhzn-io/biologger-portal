@@ -10,6 +10,7 @@ import { bytes, coord, duration, KIND_LABELS, utc } from "../lib/format";
 import { isPublished } from "../lib/mode";
 import { useDeployment, useMe } from "../lib/queries";
 import type { DeploymentDetail } from "../lib/types";
+import { QueueRunButton } from "./SimSetup";
 
 // Canonical fields grouped for the form; the order follows the lab's Xgladius sheet.
 const GROUPS: { title: string; fields: string[] }[] = [
@@ -83,9 +84,12 @@ function Tracks({ data, editor }: { data: DeploymentDetail; editor: boolean }) {
     onSuccess: refresh,
   });
   return (
-    <Panel title={`Tracks (${data.tracks.length})`}>
+    <Panel
+      title={`Tracks (${data.tracks.length})`}
+      actions={editor && !isPublished() ? <QueueRunButton body={{ deployment_id: data.id }} label="Run simulation" /> : undefined}
+    >
       {data.tracks.length === 0 ? (
-        <p className="text-sm text-muted">No track bundles. Export one with biologger-sim export-track.</p>
+        <p className="text-sm text-muted">No track bundles yet.{editor && !isPublished() ? " Run the simulation to make one." : ""}</p>
       ) : (
         <table className="w-full text-sm">
           <thead className="text-left text-muted">

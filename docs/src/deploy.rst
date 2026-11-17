@@ -25,7 +25,43 @@ The hub
 Editors sign in through the hub's tunnel hostname, behind Cloudflare Access: the signed
 ``Cf-Access-Jwt-Assertion`` header names them, and ``PORTAL_EDITORS`` lists who may edit. Reading the hub
 directly on the VPN (``garnet.internal:8797``) is anonymous and read-only: no registration, uploads,
-simulation runs or visitor log. A token that fails verification is refused.
+simulation runs or visitor log. Simulation runners use tokens of their own (see below). A token that fails verification is refused.
+
+Simulation runners
+------------------
+
+Editors queue biologger-sim runs on the hub's Runs page (one deployment, or a batch over many), or with Run
+simulation on a deployment's page. Runners do the work: each claims the oldest job it can take, runs
+``biologger-sim export-track`` on the job's config, and sends the track bundle back. The hub checks that the
+bundle came from the config it stored before it lands in ``<deployment>/tracks/<run_id>/``.
+
+Runners reach the hub at ``garnet.internal:8797`` (or ``127.0.0.1:8797`` on garnet), never through the tunnel.
+Each has a token of its own; the hub keeps only the token's SHA-256.
+
+1. Token, on the runner's host (the value never leaves that host)::
+
+       mkdir -p ~/.config/biologger-portal
+       (umask 077; openssl rand -hex 32 > ~/.config/biologger-portal/runner.token)
+
+2. Hub: add ``<name>:<sha256>`` to ``PORTAL_RUNNER_TOKENS`` in ``portal.env`` and restart the container. The
+   hash is ``printf %s "$(cat ~/.config/biologger-portal/runner.token)" | shasum -a 256``.
+3. Settings: copy ``deploy/runner/runner.env.example`` to ``~/.config/biologger-portal/runner.env``.
+
+garnet runs the runner natively under launchd, with biologger-sim installed beside it at the commit pinned in
+``runner/pyproject.toml`` (an installed package, not a second checkout)::
+
+    cd runner && uv sync --extra sim --no-dev
+    .venv/bin/biologger-portal-runner --env-file ~/.config/biologger-portal/runner.env --once   # one job, by hand
+    cp ../deploy/launchd/io.lhzn.biologger-portal-runner.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.lhzn.biologger-portal-runner.plist
+
+It logs to ``~/Library/Logs/biologger-portal-runner.log``. A runner stopped mid-job does not report it: the
+hub puts the job back in the queue once its heartbeats stop for 3 minutes, and gives up after 2 attempts.
+Failed and canceled jobs can be retried from the Runs page with the same config.
+
+biologger-sim's lab mode, which ``export-track`` runs, computes on the CPU whatever the config's
+``simulation.backend`` says, so runners offer ``cpu``. A job's backend preference only decides which runners
+may take it.
 
 The published viewer
 --------------------

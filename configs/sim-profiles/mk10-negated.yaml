@@ -37,7 +37,7 @@ config:
           track_model: ${track_model}
         ahrs:
           enabled: false
-  zmq:
-    port: 5555
-    host: "0.0.0.0"
-    topic: "biologger/telemetry"
+    zmq:
+      port: 5555
+      host: "0.0.0.0"
+      topic: "biologger/telemetry"

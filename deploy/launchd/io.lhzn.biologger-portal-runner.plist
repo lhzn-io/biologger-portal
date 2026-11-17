@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The garnet simulation runner (runner/): claims biologger-sim jobs from the hub and runs them natively.
+  Set up first: `cd runner && uv sync --extra sim --no-dev`, and ~/.config/biologger-portal/runner.env
+  from deploy/runner/runner.env.example (see docs/src/deploy.rst, "Simulation runners").
+  Install: cp to ~/Library/LaunchAgents/ and `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.lhzn.biologger-portal-runner.plist`.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>io.lhzn.biologger-portal-runner</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/lhzn/Projects/whoi-mpg/biologger-portal/runner/.venv/bin/biologger-portal-runner</string>
+    <string>--env-file</string>
+    <string>/Users/lhzn/.config/biologger-portal/runner.env</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>60</integer>
+  <key>StandardOutPath</key>
+  <string>/Users/lhzn/Library/Logs/biologger-portal-runner.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/lhzn/Library/Logs/biologger-portal-runner.log</string>
+</dict>
+</plist>

@@ -17,6 +17,7 @@ The prototype that preceded this rebuild is preserved at the tag `prototype-v0`.
   - The Files grid shows which data products exist for each deployment (standard, derived, raw, media, tracks), with counts and sizes.
 - **Validation:** checks each tag data file by reading it: sample rates per channel, gaps, units, time zones, and the deployment window. A file that cannot be read fails with the reason; no result is ever filled in.
 - **Registration (hub only):** upload a file to a deployment, create a deployment, or import a metadata sheet. Large files are better copied to the host with rsync and picked up by a scan.
+- **Simulation runs (hub only):** queue [biologger-sim](https://github.com/lhzn-io/biologger-sim) runs for one deployment or a batch, from a run profile per tag type. Runners on the fleet hosts claim the jobs and send back track bundles, which the hub checks against the config it stored before indexing them.
 - **Track viewer:** each deployment's track as reconstructed by [biologger-sim](https://github.com/lhzn-io/biologger-sim), drawn in 3D over fused bathymetry from topobathykit.
   - The animal is drawn with a model of its species, posed by pitch and roll.
   - Playback runs at 60, 600 or 3600 s of track per second, with a Chase camera that follows the animal's heading or an Orbit camera you steer around it.
@@ -83,6 +84,12 @@ cd web && npm run typecheck && npm run lint && npm test && npm run build
 cd server && uv run ruff check && uv run ruff format --check && uv run mypy && uv run pytest
 ```
 
+The simulation runner (`runner/`) has its own:
+
+```bash
+cd runner && uv run ruff check && uv run ruff format --check && uv run mypy && uv run pytest
+```
+
 The visit-log Worker has its own type check and tests, using the web app's toolchain:
 
 ```bash
@@ -99,6 +106,8 @@ Both forms run from the fleet host that holds the datasets folder:
 ```bash
 docker compose -f deploy/compose.yaml up -d --build
 ```
+
+Simulation runners run beside the hub on garnet (launchd) and on other fleet hosts; their setup is in the same guide.
 
 Setup, the daily run and known limits are in [`docs/src/deploy.rst`](docs/src/deploy.rst).
 

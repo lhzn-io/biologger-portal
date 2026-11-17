@@ -11,6 +11,7 @@ import Matrix from "./routes/Matrix";
 import Overview from "./routes/Overview";
 import Placeholder from "./routes/Placeholder";
 import Register from "./routes/Register";
+import Runs from "./routes/Runs";
 import Visitors from "./routes/Visitors";
 import { useVisitLog } from "./lib/visits";
 
@@ -22,6 +23,7 @@ const NAV = [
   { to: "/deployments", label: "Deployments" },
   { to: "/matrix", label: "Files" },
   { to: "/register", label: "Register", hub: true, editor: true },
+  { to: "/runs", label: "Runs", hub: true, editor: true },
   { to: "/visitors", label: "Visitors", hub: true, editor: true },
 ];
 
@@ -75,6 +77,10 @@ export default function App() {
                 <Register />
               )
             }
+          />
+          <Route
+            path="/runs"
+            element={published || !editor ? <Placeholder title="Not found" note="No page at this address." /> : <Runs />}
           />
           <Route
             path="/visitors"

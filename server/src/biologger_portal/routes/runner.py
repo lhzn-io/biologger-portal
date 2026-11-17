@@ -4,7 +4,8 @@
 """The runners' side of the simulation queue (see sim_jobs.py), reached over the lab VPN.
 
 Each runner has a bearer token; the hub keeps only its SHA-256, as ``name:hexdigest`` entries in
-``PORTAL_RUNNER_TOKENS``. A runner may read and update only the job it holds: once a job is
+``PORTAL_RUNNER_TOKENS``. A bundle is track.json, track.f32, track.geojson and the run's resolved
+config.yaml (see sim_jobs.check_bundle). A runner may read and update only the job it holds: once a job is
 canceled, requeued or finished, its calls get 409 and it should stop.
 """
 

@@ -1,9 +1,11 @@
 import { useState } from "react";
+import { Link } from "react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Badge, Button, ErrorNote, Panel } from "../components/ui";
 import { getJson, sendJson } from "../lib/api";
 import { bytes } from "../lib/format";
 import { useDeployments } from "../lib/queries";
+import { useQueueRun, type SimJob } from "../lib/sim";
 
 export interface SimProfile {
   name: string;
@@ -125,9 +127,15 @@ export function SimSetupPanel({ dep, setDep }: { dep: string; setDep: (id: strin
               ))}
             </ul>
           ) : (
-            <p>
-              <Badge tone="passed">ready</Badge> {data.profile} on <span className="font-mono">{data.input_path}</span>
-            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <span>
+                <Badge tone="passed">ready</Badge> {data.profile} on <span className="font-mono">{data.input_path}</span>
+              </span>
+              <QueueRunButton
+                body={{ deployment_id: dep, profile: data.profile, input_path: data.input_path, overrides }}
+                label="Queue this run"
+              />
+            </div>
           )}
           {data.config_yaml && (
             <button type="button" className="text-xs text-accent hover:underline" onClick={() => setShowConfig(!showConfig)}>
@@ -144,5 +152,33 @@ export function SimSetupPanel({ dep, setDep }: { dep: string; setDep: (id: strin
         </div>
       )}
     </Panel>
+  );
+}
+
+/** Queues one run at 1 Hz on any runner; the server refuses, with its reasons, a deployment that cannot run yet. */
+export function QueueRunButton({
+  body,
+  label = "Queue run",
+}: {
+  body: { deployment_id: string; profile?: string | null; input_path?: string | null; overrides?: string };
+  label?: string;
+}) {
+  const queue = useQueueRun();
+  const job: SimJob | undefined = queue.data;
+  return (
+    <span className="flex items-center gap-2 text-sm">
+      <Button kind="plain" disabled={queue.isPending || !!job} onClick={() => queue.mutate(body)}>
+        {label}
+      </Button>
+      {job && (
+        <span className="text-xs">
+          Queued as job {job.id}.{" "}
+          <Link to="/runs" className="text-accent hover:underline">
+            Runs
+          </Link>
+        </span>
+      )}
+      {queue.error && <span className="text-xs text-bad">{queue.error.message}</span>}
+    </span>
   );
 }

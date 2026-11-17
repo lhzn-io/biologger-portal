@@ -5,8 +5,8 @@
 
 A profile (``configs/sim-profiles/<name>.yaml``) holds the processing choices for one kind of tag:
 the biologger-sim LAB config for a single entity, with ``${...}`` placeholders for what belongs to
-the deployment. ``render`` fills them in and returns the YAML a runner executes unchanged, so the
-bundle's ``config_sha256`` is the hash of the text stored on the job.
+the deployment. ``render`` fills them in and returns the YAML a runner executes unchanged; the hub
+checks the run's resolved config against it (sim_jobs.check_resolved_config).
 
 A runner puts the run's files side by side and runs biologger-sim from that folder: the config,
 the metadata sheet as ``meta.csv`` (``meta_csv``, the one row biologger-sim reads fixes and the

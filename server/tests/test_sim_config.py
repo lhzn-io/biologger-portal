@@ -4,6 +4,7 @@
 import csv
 import io
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -38,7 +39,7 @@ FIELDS = {
 }
 
 
-def entity(text: str) -> dict:
+def entity(text: str) -> dict[str, Any]:
     return yaml.safe_load(text)["simulation"]["entities"][0]  # type: ignore[no-any-return]
 
 

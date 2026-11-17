@@ -11,8 +11,12 @@ whose heartbeat stops for ``STALE_AFTER_S`` goes back to the queue (``reap``), u
 thread is needed.
 
 A finished bundle is checked against its job before it lands in ``<deployment>/tracks/<run_id>/``:
-its schema, deployment, data size, and ``config_sha256`` equal to the hash of the job's config, so a
-track in the catalog is the output of the config the hub stored. Existing runs are never replaced.
+its schema, deployment and data size, and its config. biologger-sim hashes the configuration it
+resolved for the run (``pipeline-runs/<run>/config.yaml``: the job's config with every default
+filled in), so the runner sends that file with the bundle; ``config_sha256`` must be its hash, and
+every setting in the job's config that the resolved config has must hold the same value there
+(legacy keys that biologger-sim maps to others are absent from it and are skipped). The resolved
+config stays in the track folder. Existing runs are never replaced.
 """
 
 import hashlib
@@ -20,9 +24,12 @@ import json
 import re
 import shutil
 import sqlite3
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+
+import yaml
 
 from .db import Catalog, utcnow
 
@@ -30,8 +37,8 @@ BACKENDS = ("any", "warp", "mlx", "cpu")
 ACTIVE = ("claimed", "running")
 STALE_AFTER_S = 180
 MAX_ATTEMPTS = 2
-BUNDLE_FILES = ("track.json", "track.f32", "track.geojson")
-REQUIRED_FILES = ("track.json", "track.f32")
+BUNDLE_FILES = ("track.json", "track.f32", "track.geojson", "config.yaml")
+REQUIRED_FILES = ("track.json", "track.f32", "config.yaml")
 RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,200}$")
 LOG_TAIL_CHARS = 8000
 
@@ -225,14 +232,55 @@ def check_bundle(job: dict[str, Any], staged: Path) -> dict[str, Any]:
     data = meta.get("data") or {}
     if data.get("file") != "track.f32" or data.get("bytes") != (staged / "track.f32").stat().st_size:
         raise BundleError("track.f32 does not have the size track.json gives")
-    expected = hashlib.sha256(job["config_yaml"].encode()).hexdigest()
+    resolved = (staged / "config.yaml").read_bytes()
+    expected = hashlib.sha256(resolved).hexdigest()
     got = (meta.get("provenance") or {}).get("config_sha256")
     if got != expected:
-        raise BundleError(f"config_sha256 {got} is not the hash of the job's config ({expected})")
+        raise BundleError(f"config_sha256 {got} is not the hash of the run's config.yaml ({expected})")
+    check_resolved_config(job["config_yaml"], resolved)
     run_id = str(meta.get("run_id") or "")
     if not RUN_ID.match(run_id):
         raise BundleError(f"run_id {run_id!r} is not a safe folder name")
     return meta
+
+
+def _differences(asked: Any, ran: Any, path: str) -> Iterator[str]:
+    """Paths where ``ran`` holds another value than ``asked``; keys ``ran`` does not have are skipped."""
+    if isinstance(asked, dict):
+        if not isinstance(ran, dict):
+            yield path or "(top)"
+            return
+        for key, value in asked.items():
+            if key in ran:
+                yield from _differences(value, ran[key], f"{path}.{key}" if path else str(key))
+    elif isinstance(asked, list):
+        if not isinstance(ran, list) or len(ran) != len(asked):
+            yield path
+            return
+        for i, (a, r) in enumerate(zip(asked, ran, strict=True)):
+            yield from _differences(a, r, f"{path}[{i}]")
+    elif asked != ran:  # 16 and 16.0 are the same setting
+        yield path
+
+
+def check_resolved_config(job_yaml: str, resolved: bytes) -> None:
+    """Raises BundleError unless the run's resolved config carries the job's settings."""
+    try:
+        asked = yaml.safe_load(job_yaml)
+        ran = yaml.safe_load(resolved)
+    except yaml.YAMLError as exc:
+        raise BundleError(f"config.yaml is not YAML: {exc}") from exc
+    try:
+        same_entity = (
+            ran["simulation"]["entities"][0]["sim_id"] == asked["simulation"]["entities"][0]["sim_id"]
+        )
+    except (KeyError, IndexError, TypeError):
+        same_entity = False
+    if not same_entity:
+        raise BundleError("config.yaml is not the resolved config of the job's entity")
+    diffs = list(_differences(asked, ran, ""))
+    if diffs:
+        raise BundleError(f"the run's config.yaml differs from the job's config at {', '.join(diffs[:6])}")
 
 
 def land_bundle(catalog: Catalog, root: Path, portal_dir: Path, job: dict[str, Any]) -> str:
