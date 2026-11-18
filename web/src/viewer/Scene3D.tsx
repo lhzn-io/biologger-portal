@@ -8,7 +8,7 @@ import { createVantage, type Vantage } from "../vendor/vantagekit/vantagekit-thr
 import { activityColor, LINE_POINTS, segmentMeans } from "./activity";
 import { loadAnimalModel } from "./animal";
 import { currentColor } from "./current";
-import { inspectorSample, type InspectorFrame } from "./inspector";
+import { inspectorSample, type InspectorOptions } from "./inspector";
 import { InspectorView } from "./inspectorView";
 import { angleAt, valueAt } from "./playback";
 import { elevationAt, elevationColor, trackDepthColor, type Dem } from "./dem";
@@ -140,8 +140,8 @@ export default function Scene3D({
   others?: OtherTrack[];
   /** Draw this track in one color (CSS) instead of the `colorBy` ramp. */
   solidColor?: string;
-  /** Show the physics inspector inset, in this frame and at this many body lengths per 1 m/s. */
-  inspector?: { frame: InspectorFrame; scale: number } | null;
+  /** Show the physics inspector inset: its frame, body lengths per 1 m/s, and whether gravity is drawn. */
+  inspector?: InspectorOptions | null;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const state = useRef<SceneState | null>(null);
@@ -498,10 +498,10 @@ export default function Scene3D({
       const io = inspectorOn.current;
       st.inspector.setVisible(!!io);
       if (io) {
-        const key = `${io.frame}:${io.scale}`;
-        if (key !== described) st.inspector.describe(track, io.frame, io.scale);
+        const key = `${io.frame}:${io.scale}:${io.gravity}`;
+        if (key !== described) st.inspector.describe(track, io);
         described = key;
-        st.inspector.update(inspectorSample(track, st.cursor, io.frame), io.scale);
+        st.inspector.update(inspectorSample(track, st.cursor, io.frame));
         st.inspector.render(renderer, el.clientWidth || 600, el.clientHeight || 400);
       }
     };

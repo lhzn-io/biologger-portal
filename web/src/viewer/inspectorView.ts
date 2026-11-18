@@ -1,23 +1,44 @@
 /**
- * The physics inspector inset: the animal at its attitude with the velocities acting on it, drawn by the 3D view's
- * own renderer into a small scissored viewport in the bottom-right corner (one WebGL context, at the scene's pixel
- * ratio, so the inset is never a small buffer stretched up). Labels are HTML over the inset, moved each frame.
+ * The physics inspector inset: the animal at its attitude with the velocities and accelerations acting on it, drawn
+ * by the 3D view's own renderer into a small scissored viewport in the bottom-right corner (one WebGL context, at
+ * the scene's pixel ratio, so the inset is never a small buffer stretched up). Labels are HTML over the inset,
+ * moved each frame; the header with the frame toggle and the (i) explainer is InspectorChrome.
  *
  * Built once per scene; each frame only sets the body's quaternion and the arrows' lengths and directions.
  */
 import * as THREE from "three";
 import type { AnimalModel } from "./animal";
-import { cmPerS, placementOf, type InspectorSample } from "./inspector";
+import { cmPerS, mPerS2, placementOf, type InspectorOptions, type InspectorSample } from "./inspector";
 import type { Track } from "./track";
 
 /** The inset's size and its offsets from the view's right and bottom edges (CSS px; bottom clears the credits). */
 export const INSET = { size: 220, right: 8, bottom: 32 };
 
-/** Arrow colors: through the water (blue), the current (green, as the current track colors), over the ground. */
-export const ARROW_COLORS = { water: "#60a5fa", current: "#34d399", ground: "#fbbf24" } as const;
+/**
+ * Arrow colors: through the water (blue), the current (green, as the current track colors), over the ground
+ * (amber), the dynamic acceleration (pink) and gravity (light gray).
+ */
+export const ARROW_COLORS = {
+  water: "#60a5fa",
+  current: "#34d399",
+  ground: "#fbbf24",
+  dynamic: "#f472b6",
+  gravity: "#cbd5e1",
+} as const;
+
+/** Body lengths per 1 m/s^2 for the accelerations, whatever the velocity scale (gravity is about 2 body lengths). */
+export const ACCEL_SCALE = 0.2;
 
 type ArrowKey = keyof typeof ARROW_COLORS;
-const LABELS: Record<ArrowKey, string> = { water: "through water", current: "current", ground: "over ground" };
+const VELOCITIES: ArrowKey[] = ["water", "current", "ground"];
+const ACCELS: ArrowKey[] = ["dynamic", "gravity"];
+const LABELS: Record<ArrowKey, string> = {
+  water: "through water",
+  current: "current",
+  ground: "over ground",
+  dynamic: "dynamic accel.",
+  gravity: "gravity",
+};
 const SHAFT_R = 0.014;
 const HEAD_LEN = 0.09;
 const UP = new THREE.Vector3(0, 1, 0);
@@ -63,12 +84,14 @@ class Arrow {
   dispose(): void {
     this.shaft.geometry.dispose();
     this.head.geometry.dispose();
-    (this.shaft.material as THREE.Material).dispose();
+    this.mat.dispose();
   }
 }
 
 /** Edges of a species model, built once per model (the geometry is shared through the model cache). */
 const edgeCache = new WeakMap<THREE.BufferGeometry, THREE.EdgesGeometry>();
+
+const fmtDeg = (d: number) => (Number.isFinite(d) ? `${Math.round(d)}°` : "--");
 
 export class InspectorView {
   private readonly scene = new THREE.Scene();
@@ -78,10 +101,14 @@ export class InspectorView {
   private readonly ring: THREE.LineLoop;
   private readonly overlay: HTMLDivElement;
   private readonly tips: Record<ArrowKey | "north", HTMLSpanElement>;
+  private readonly rows: Record<ArrowKey, HTMLDivElement>;
   private readonly values: Record<ArrowKey, HTMLSpanElement>;
+  private readonly attitudeLine: HTMLDivElement;
   private readonly note: HTMLDivElement;
   private readonly undefinedNote: HTMLSpanElement;
-  private frame: "heading" | "north" = "heading";
+  private opts: InspectorOptions = { frame: "heading", scale: 1, gravity: false };
+  private turnDeg = 0;
+  private hasAccel = false;
   private readonly owned: (THREE.BufferGeometry | THREE.Material)[] = [];
   private standIn: THREE.BufferGeometry[] = [];
   private reach = 1.2; // the radius the camera frames, eased toward the longest arrow
@@ -105,80 +132,78 @@ export class InspectorView {
     this.owned.push(ringGeo, ringMat);
     this.scene.add(this.ring);
 
-    this.arrows = { water: new Arrow(ARROW_COLORS.water), current: new Arrow(ARROW_COLORS.current), ground: new Arrow(ARROW_COLORS.ground) };
+    const keys = Object.keys(ARROW_COLORS) as ArrowKey[];
+    this.arrows = Object.fromEntries(keys.map((k) => [k, new Arrow(ARROW_COLORS[k])])) as Record<ArrowKey, Arrow>;
     for (const a of Object.values(this.arrows)) this.scene.add(a.group);
 
     const el = document.createElement("div");
-    el.className = "absolute cursor-help overflow-hidden rounded border border-line font-mono text-[10px] leading-tight";
+    el.className = "absolute overflow-hidden rounded-b border border-line font-mono text-[10px] leading-tight";
     Object.assign(el.style, { right: `${INSET.right}px`, bottom: `${INSET.bottom}px`, width: `${INSET.size}px`, height: `${INSET.size}px` });
-    el.setAttribute("aria-label", "Physics inspector: the animal's attitude and the velocities dead reckoning combined");
-    const title = document.createElement("div");
-    title.className = "absolute top-1 left-1.5 text-muted";
-    title.textContent = "Physics";
-    const legend = document.createElement("div");
-    legend.className = "absolute bottom-1 left-1.5 space-y-px";
+    el.setAttribute("aria-label", "Physics inspector: the animal's attitude and the vectors acting on it");
     const span = (cls: string, color?: string) => {
       const s = document.createElement("span");
       s.className = cls;
       if (color) s.style.color = color;
       return s;
     };
-    const keys = Object.keys(ARROW_COLORS) as ArrowKey[];
-    this.values = {} as Record<ArrowKey, HTMLSpanElement>;
-    for (const k of keys) {
-      const row = document.createElement("div");      row.append(span("", ARROW_COLORS[k]), span("text-muted"));
-      (row.firstChild as HTMLSpanElement).textContent = "■ ";
-      (row.lastChild as HTMLSpanElement).textContent = `${LABELS[k]} `;
-      this.values[k] = span("text-ink");
-      row.append(this.values[k]);
-      legend.append(row);
-    }
-    this.undefinedNote = span("hidden text-muted italic");
-    this.undefinedNote.textContent = "heading undefined near vertical";
-    legend.prepend(this.undefinedNote);
+    this.attitudeLine = document.createElement("div");
+    this.attitudeLine.className = "absolute top-1 left-1.5 text-ink";
+    this.attitudeLine.append(document.createElement("div"), document.createElement("div"));
     this.note = document.createElement("div");
     this.note.className = "absolute top-1 right-1.5 text-right text-[9px] whitespace-nowrap text-muted";
+    const legend = document.createElement("div");
+    legend.className = "absolute bottom-1 left-1.5 space-y-px";
+    this.undefinedNote = span("hidden text-muted italic");
+    this.undefinedNote.textContent = "heading undefined near vertical";
+    legend.append(this.undefinedNote);
+    this.values = {} as Record<ArrowKey, HTMLSpanElement>;
+    this.rows = {} as Record<ArrowKey, HTMLDivElement>;
+    for (const k of keys) {
+      const row = document.createElement("div");
+      const swatch = span("", ARROW_COLORS[k]);
+      swatch.textContent = "■ ";
+      const label = span("text-muted");
+      label.textContent = `${LABELS[k]} `;
+      this.values[k] = span("text-ink");
+      row.append(swatch, label, this.values[k]);
+      this.rows[k] = row;
+      legend.append(row);
+    }
+    const tip = (k: ArrowKey) => span("absolute -translate-x-1/2 -translate-y-full", ARROW_COLORS[k]);
     this.tips = {
-      water: span("absolute -translate-x-1/2 -translate-y-full", ARROW_COLORS.water),
-      current: span("absolute -translate-x-1/2 -translate-y-full", ARROW_COLORS.current),
-      ground: span("absolute -translate-x-1/2 -translate-y-full", ARROW_COLORS.ground),
+      water: tip("water"),
+      current: tip("current"),
+      ground: tip("ground"),
+      dynamic: tip("dynamic"),
+      gravity: tip("gravity"),
       north: span("absolute -translate-x-1/2 -translate-y-1/2 text-muted"),
     };
     this.tips.north.textContent = "N";
-    el.append(title, this.note, legend, ...Object.values(this.tips));
+    el.append(this.attitudeLine, this.note, legend, ...Object.values(this.tips));
     host.appendChild(el);
     this.overlay = el;
     this.setVisible(false);
   }
 
-  /** The note in the inset's corner: the frame, and what the speeds are (constant, before fix pinning). */
-  describe(track: Track, frame: "heading" | "north", scale: number): void {
-    this.frame = frame;
-    const lines = [`${frame === "heading" ? "heading up" : "north up"}, ring 1 m/s`];
-    const tips = [scale === 1 ? "One body length per 1 m/s." : `${scale} body lengths per 1 m/s.`];
+  /** The note in the inset's corner (what the speeds are) and which rows the legend shows. */
+  describe(track: Track, opts: InspectorOptions): void {
+    this.opts = opts;
+    this.hasAccel = track.accel != null;
+    const lines = [`ring 1 m/s${opts.scale === 1 ? "" : ` at ${opts.scale}x`}`];
     const sp = track.speed;
     if (sp) {
       let lo = Infinity;
       let hi = -Infinity;
       for (const x of sp) if (Number.isFinite(x)) [lo, hi] = [Math.min(lo, x), Math.max(hi, x)];
-      if (hi - lo < 1e-6 && Number.isFinite(lo)) {
-        lines.push(`water speed fixed ${lo.toFixed(2)}`);
-        tips.push(`Dead reckoning assumed a constant ${lo.toFixed(2)} m/s through the water.`);
-      }
+      if (hi - lo < 1e-6 && Number.isFinite(lo)) lines.push(`water speed fixed ${lo.toFixed(2)}`);
     } else lines.push("no water speed");
     const { turnDeg, scale: k } = placementOf(track);
-    if (Math.abs(k - 1) > 1e-6 || Math.abs(turnDeg) > 1e-6) {
-      lines.push(`before pinning (x${k.toFixed(2)}, ${turnDeg.toFixed(0)} deg)`);
-      tips.push(
-        `Drawn as dead reckoning combined them, before fix pinning scaled the track ${k.toFixed(2)}x and turned it ${turnDeg.toFixed(0)} deg (the turn absorbs the magnetic declination and any heading bias).`,
-      );
-    } else if (track.headingSource === "tag") {
-      // biologger-sim's heading is the tilt-compensated magnetometer's, with no declination applied.
-      lines.push("magnetic heading");
-      tips.push("The heading is magnetic, with no declination applied, as dead reckoning used it.");
-    }
+    this.turnDeg = turnDeg;
+    if (Math.abs(k - 1) > 1e-6 || Math.abs(turnDeg) > 1e-6) lines.push(`before pinning (x${k.toFixed(2)}, ${turnDeg.toFixed(0)}°)`);
+    else if (track.headingSource === "tag") lines.push("magnetic heading");
     this.note.replaceChildren(...lines.map((l) => Object.assign(document.createElement("div"), { textContent: l })));
-    this.overlay.title = tips.join(" ");
+    this.rows.dynamic.style.display = this.hasAccel ? "" : "none";
+    this.rows.gravity.style.display = this.hasAccel && opts.gravity ? "" : "none";
   }
 
   /** The species model at unit length (head toward -z), drawn translucent with its edges; null for the stand-in. */
@@ -212,21 +237,30 @@ export class InspectorView {
     this.overlay.style.display = on ? "" : "none";
   }
 
-  /** Sets the body and arrows for one frame; `scale` is body lengths per 1 m/s. */
-  update(s: InspectorSample, scale: number): void {
+  /** Sets the body, arrows and labels for one frame. */
+  update(s: InspectorSample): void {
+    const { frame, scale, gravity } = this.opts;
     this.body.quaternion.copy(s.body);
     // Without a defined heading, the through-water and over-ground directions are not data, nor, heading up, is the
-    // current's direction relative to the body. The body is still drawn from pitch and roll.
-    const muted = (k: ArrowKey) => !s.headingDefined && (k !== "current" || this.frame === "heading");
+    // current's direction relative to the body, nor, north up, are the accelerations' compass directions. The body
+    // is still drawn from pitch and roll.
+    const muted = (k: ArrowKey) =>
+      !s.headingDefined && (k === "water" || k === "ground" || (k === "current" ? frame === "heading" : frame === "north"));
+    const shown = (k: ArrowKey) => (k === "gravity" ? gravity : true);
+    const len = (k: ArrowKey) => (ACCELS.includes(k) ? ACCEL_SCALE : scale);
     this.undefinedNote.style.display = s.headingDefined ? "none" : "block";
+    const yaw = `yaw ${fmtDeg(s.headingDeg)}${Math.abs(this.turnDeg) > 1e-6 ? ` (${fmtDeg(s.placedHeadingDeg)} pinned)` : ""}`;
+    const [rp, y] = this.attitudeLine.children as unknown as [HTMLElement, HTMLElement];
+    rp.textContent = `roll ${fmtDeg(s.rollDeg)} pitch ${fmtDeg(s.pitchDeg)}`;
+    y.textContent = s.headingDefined ? yaw : "yaw undefined";
     let longest = 0.6;
     for (const k of Object.keys(this.arrows) as ArrowKey[]) {
-      const v = s[k];
-      const scaled = v ? this.v.copy(v).multiplyScalar(scale) : null;
+      const v = shown(k) ? s[k] : null;
+      const scaled = v ? this.v.copy(v).multiplyScalar(len(k)) : null;
       this.arrows[k].set(scaled);
       this.arrows[k].setMuted(muted(k));
       if (scaled) longest = Math.max(longest, scaled.length());
-      this.values[k].textContent = cmPerS(v);
+      this.values[k].textContent = VELOCITIES.includes(k) ? cmPerS(s[k]) : mPerS2(s[k]);
       this.values[k].style.opacity = muted(k) ? "0.45" : "";
     }
     this.ring.scale.setScalar(scale);
@@ -239,11 +273,12 @@ export class InspectorView {
     this.camera.updateMatrixWorld();
     this.place(this.tips.north, s.north.clone().multiplyScalar(scale * 1.12));
     for (const k of Object.keys(this.arrows) as ArrowKey[]) {
-      const v = s[k];
-      this.tips[k].style.display = v && !muted(k) && v.length() * scale > 0.05 ? "" : "none";
-      if (v && this.tips[k].style.display === "") {
-        this.tips[k].textContent = cmPerS(v).replace(" cm/s", "");
-        this.place(this.tips[k], this.v.copy(v).multiplyScalar(scale));
+      const v = shown(k) ? s[k] : null;
+      const on = !!v && !muted(k) && v.length() * len(k) > 0.05;
+      this.tips[k].style.display = on ? "" : "none";
+      if (on && v) {
+        this.tips[k].textContent = VELOCITIES.includes(k) ? String(Math.round(v.length() * 100)) : v.length().toFixed(1);
+        this.place(this.tips[k], this.v.copy(v).multiplyScalar(len(k)));
       }
     }
   }

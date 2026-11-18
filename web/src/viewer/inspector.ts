@@ -1,19 +1,19 @@
 /**
- * The physics inspector's numbers: the animal's attitude as a quaternion, and the velocities dead reckoning
- * combined at that instant (the through-water velocity along the heading, the applied ocean current, and their sum
- * over the ground), in the frame the inset draws.
+ * The physics inspector's numbers: the animal's attitude as a quaternion, the velocities dead reckoning combined at
+ * that instant (the through-water velocity along the heading, the applied ocean current, and their sum over the
+ * ground), and, where the bundle has them, the tag's dynamic acceleration and gravity, in the frame the inset draws.
  *
  * Axes follow the 3D view: x east, y up, -z north; the body is built head toward -z and back toward +y. The
  * attitude is the view's own (Euler YXZ: pitch about x, minus heading about y, minus roll about z), so the inset
  * and the scene always agree.
  *
- * The vectors are drawn as dead reckoning integrated them: horizontal, at the through-water speed it used, along
+ * The velocities are drawn as dead reckoning integrated them: horizontal, at the through-water speed it used, along
  * the heading before any fix-pinning turn, plus the current as applied. Pinning then turns and scales the whole
  * track rigidly (manifest heading_correction_deg and the placement step's scale), which the inset notes rather
  * than draws, since a scaled current would no longer be the model's current.
  */
 import * as THREE from "three";
-import { splitPosition, valueAt } from "./playback";
+import { angleAt, splitPosition, valueAt } from "./playback";
 import type { Track } from "./track";
 
 const D2R = Math.PI / 180;
@@ -21,9 +21,26 @@ const D2R = Math.PI / 180;
 /** The drawn frame: heading up and level (the default), or north up. */
 export type InspectorFrame = "heading" | "north";
 
+/** What the inset shows: its frame, body lengths per 1 m/s, and whether gravity is drawn. */
+export interface InspectorOptions {
+  frame: InspectorFrame;
+  scale: number;
+  gravity: boolean;
+}
+
 /** A world vector (east, north, up), in meters or m/s, in the scene's axes. */
 export function toScene(east: number, north: number, up: number): THREE.Vector3 {
   return new THREE.Vector3(east, up, -north);
+}
+
+/**
+ * A vector in the tag's body axes (x toward the head, y to the right, z down through the belly: biologger-sim's
+ * axes after the attachment rotation) in the model's body axes (head toward -z, back toward +y, right toward +x).
+ * The exported bundles bear this out: their static vector, which points along gravity, gives pitch_deg (nose up
+ * positive) as atan2(-x, hypot(y, z)) and roll_deg (right side down positive) as atan2(y, z).
+ */
+export function tagToBody(x: number, y: number, z: number): THREE.Vector3 {
+  return new THREE.Vector3(y, -z, -x);
 }
 
 const euler = new THREE.Euler(0, 0, 0, "YXZ");
@@ -81,8 +98,17 @@ export interface InspectorSample {
   current: THREE.Vector3 | null;
   /** Over the ground: their sum; null without a through-water speed. */
   ground: THREE.Vector3 | null;
-  /** The heading dead reckoning used here (deg clockwise from north, 0 to 360). */
+  /** The tag's dynamic acceleration (m/s^2, drawn frame); null when the bundle has no acceleration columns. */
+  dynamic: THREE.Vector3 | null;
+  /** Gravity as the tag sees it: its static (low-passed) acceleration (m/s^2, drawn frame); null likewise. */
+  gravity: THREE.Vector3 | null;
+  /** The heading dead reckoning used here (deg clockwise from magnetic north, 0 to 360). */
   headingDeg: number;
+  /** The bundle's heading here, after any fix-pinning turn (deg, 0 to 360; NaN where the tag has none). */
+  placedHeadingDeg: number;
+  /** Pitch (nose up) and roll (right side down), degrees, at the playback position. */
+  pitchDeg: number;
+  rollDeg: number;
   /** Unit north (level) in the drawn frame, for the inset's north mark. */
   north: THREE.Vector3;
   /**
@@ -95,6 +121,15 @@ export interface InspectorSample {
 
 /** Past this pitch (deg, either way) the heading is treated as undefined. */
 export const VERTICAL_DEG = 80;
+
+const wrap360 = (deg: number) => ((deg % 360) + 360) % 360;
+
+/** A body-axes column triple at a playback position, in the drawn frame; null where any component is missing. */
+function accelAt(cols: [Float32Array, Float32Array, Float32Array], at: number, body: THREE.Quaternion): THREE.Vector3 | null {
+  const [x, y, z] = cols.map((c) => valueAt(c, at)) as [number, number, number];
+  if (![x, y, z].every(Number.isFinite)) return null;
+  return tagToBody(x, y, z).applyQuaternion(body);
+}
 
 /** The inset's state at a fractional playback position. */
 export function inspectorSample(track: Track, at: number, frame: InspectorFrame): InspectorSample {
@@ -125,16 +160,37 @@ export function inspectorSample(track: Track, at: number, frame: InspectorFrame)
     if (!missing && Number.isFinite(e) && Number.isFinite(n)) current = toScene(e, n, 0).applyQuaternion(toFrame);
   }
   const ground = water ? water.clone().add(current ?? new THREE.Vector3()) : null;
+  const a = track.accel;
+  const dynamic = a ? accelAt(a.dynamic, at, body) : null;
+  const gravity = a ? accelAt(a.static, at, body) : null;
   const north = toScene(0, 1, 0).applyQuaternion(toFrame);
   const [hi, hj, hf] = splitPosition(at, track.count);
+  const pitchDeg = valueAt(track.pitch, at);
   const headingDefined =
-    Math.abs(valueAt(track.pitch, at) || 0) <= VERTICAL_DEG &&
-    Number.isFinite(track.heading[hi]!) &&
-    (!(hf > 0) || Number.isFinite(track.heading[hj]!));
-  return { body, water, current, ground, headingDeg: ((level % 360) + 360) % 360, north, headingDefined };
+    Math.abs(pitchDeg || 0) <= VERTICAL_DEG && Number.isFinite(track.heading[hi]!) && (!(hf > 0) || Number.isFinite(track.heading[hj]!));
+  const placed = angleAt(track.heading, at);
+  return {
+    body,
+    water,
+    current,
+    ground,
+    dynamic,
+    gravity,
+    headingDeg: wrap360(level),
+    placedHeadingDeg: Number.isFinite(placed) ? wrap360(placed) : NaN,
+    pitchDeg,
+    rollDeg: angleAt(track.roll, at),
+    north,
+    headingDefined,
+  };
 }
 
 /** A speed as the inset labels it: centimeters per second, whole numbers. */
 export function cmPerS(v: THREE.Vector3 | null): string {
   return v ? `${Math.round(v.length() * 100)} cm/s` : "--";
+}
+
+/** An acceleration as the inset labels it: m/s^2 to one decimal. */
+export function mPerS2(v: THREE.Vector3 | null): string {
+  return v ? `${v.length().toFixed(1)} m/s²` : "--";
 }

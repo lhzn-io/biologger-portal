@@ -17,6 +17,7 @@ import { currentScale } from "../viewer/current";
 import { advance, DEFAULT_SPEED, parseSpeed, SPEED_STEPS, speedLabel, stepSpeed } from "../viewer/playback";
 import { DEFAULT_CHART_PICK, DEFAULT_PLAY_CAMERA, DEFAULT_TRACK_COLOR, PLAY_CAMERAS, readPageLink, writePageLink, type ChartPick, type PlayCamera, type TrackColor } from "../viewer/link";
 import type { InspectorFrame } from "../viewer/inspector";
+import InspectorChrome from "../viewer/InspectorChrome";
 import { indexAt, loadTrack, timeOf } from "../viewer/track";
 
 const PLAY_CAMERA_LABELS: Record<PlayCamera, string> = { free: "Free", chase: "Chase", orbit: "Orbit" };
@@ -48,7 +49,12 @@ export default function TrackPage() {
   // The physics inspector inset: hidden unless the viewer or a shared link opens it.
   const [phys, setPhys] = useState<InspectorFrame | null>(initial.phys && initial.phys !== "off" ? initial.phys : null);
   const [physScale, setPhysScale] = useState(1);
-  const inspector = useMemo(() => (phys ? { frame: phys, scale: physScale } : null), [phys, physScale]);
+  const [physGravity, setPhysGravity] = useState(false);
+  const inspector = useMemo(() => (phys ? { frame: phys, scale: physScale, gravity: physGravity } : null), [phys, physScale, physGravity]);
+  const onInspector = useCallback((f: InspectorFrame | null) => {
+    logVisit("action", "inspector", { frame: f ?? "off" });
+    setPhys(f);
+  }, []);
   const view = useRef<SceneView | null>(null);
   // Studio: the 3D view fills the browser window. Full screen: the browser's own full screen, of the 3D view alone.
   const [studio, setStudio] = useState(false);
@@ -329,13 +335,20 @@ export default function TrackPage() {
             trackScale={scales.track}
             species={species}
             inspector={phys}
-            onInspector={(f) => {
-              logVisit("action", "inspector", { frame: f ?? "off" });
-              setPhys(f);
-            }}
+            onInspector={onInspector}
             inspectorScale={physScale}
             onInspectorScale={setPhysScale}
           />
+          {phys && (
+            <InspectorChrome
+              frame={phys}
+              onFrame={onInspector}
+              gravity={physGravity}
+              onGravity={setPhysGravity}
+              hasAccel={tr.accel != null}
+              onClose={() => onInspector(null)}
+            />
+          )}
           <Credits />
           {(studio || fullscreen) && (
             <div className="absolute bottom-2 left-2 flex flex-wrap items-center gap-3 rounded border border-line bg-panel/90 px-2 py-1 text-sm">

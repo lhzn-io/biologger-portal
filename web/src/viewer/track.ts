@@ -59,6 +59,16 @@ export interface TrackCurrent {
   donor: string | null;
 }
 
+/**
+ * Acceleration in the tag's body axes after the attachment rotation: x toward the head, y to the right, z down.
+ * The static vector points along gravity and gives the bundle's pitch = atan2(-x, hypot(y, z)) (nose up positive)
+ * and roll = atan2(y, z) (right side down positive).
+ */
+export interface TrackAccel {
+  static: [Float32Array, Float32Array, Float32Array];
+  dynamic: [Float32Array, Float32Array, Float32Array];
+}
+
 export interface Track {
   manifest: TrackManifest;
   count: number;
@@ -83,6 +93,9 @@ export interface Track {
   current: TrackCurrent | null;
   /** Through-water speed dead reckoning used (m/s, before placement); null in bundles without it. */
   speed: Float32Array | null;
+  /** Static (low-passed gravity) and dynamic (total minus static) acceleration, in m/s^2 (converted from g where the
+   * run reports g), at sample time; null in bundles without them. */
+  accel: TrackAccel | null;
   lat: Float64Array;
   lon: Float64Array;
   units: Record<string, string>;
@@ -103,6 +116,25 @@ export function toLatLon(origin: { lat: number; lon: number }, north: number, ea
   const lon = origin.lon + east / (EARTH_RADIUS_M * Math.cos(origin.lat * D2R)) / D2R;
   return [lat, lon];
 }
+
+/** The six acceleration columns, or null unless every one is present. */
+function readAccel(optional: (...names: string[]) => Float32Array | null, units: Record<string, string>): TrackAccel | null {
+  const axes = (kind: string) =>
+    ["x", "y", "z"].map((a) => {
+      const name = `accel_${kind}_${a}`;
+      const c = optional(name);
+      // The unit follows the run, as VeDBA's does: m/s^2 for lab exports, g for streaming ones.
+      if (c && units[name]?.trim().toLowerCase() === "g") for (let i = 0; i < c.length; i++) c[i]! *= STANDARD_GRAVITY;
+      return c;
+    });
+  const s = axes("static");
+  const d = axes("dynamic");
+  if (![...s, ...d].every((c) => c)) return null;
+  return { static: s as TrackAccel["static"], dynamic: d as TrackAccel["dynamic"] };
+}
+
+/** m/s^2 per g. */
+export const STANDARD_GRAVITY = 9.80665;
 
 export function parseTrack(manifest: TrackManifest, buffer: ArrayBuffer): Track {
   const n = manifest.count;
@@ -160,6 +192,7 @@ export function parseTrack(manifest: TrackManifest, buffer: ArrayBuffer): Track 
     rollQuality: optional("roll_quality", "roll_qc"),
     current,
     speed: optional("speed_m_s"),
+    accel: readAccel(optional, Object.fromEntries(manifest.columns.map((c) => [c.name, c.unit ?? ""]))),
     lat,
     lon,
     units: Object.fromEntries(manifest.columns.map((c) => [c.name, c.unit ?? ""])),

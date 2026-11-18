@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { attitude, attitudeAt, cmPerS, inspectorSample, placementOf, toScene } from "./inspector";
+import { attitude, attitudeAt, cmPerS, inspectorSample, mPerS2, placementOf, tagToBody, toScene } from "./inspector";
 import { parseTrack, type PipelineStep, type TrackManifest } from "./track";
 
 const BASE = ["t", "north_m", "east_m", "depth_m", "heading_deg", "pitch_deg", "roll_deg", "vedba"];
@@ -12,6 +12,7 @@ function track(
   att: { heading: number[]; pitch?: number[]; roll?: number[] },
   extra: Record<string, number[]> = {},
   more: Partial<TrackManifest> = {},
+  units: Record<string, string> = {},
 ) {
   const n = att.heading.length;
   const names = [...BASE, ...Object.keys(extra)];
@@ -24,7 +25,7 @@ function track(
   const manifest = {
     schema: "track-bundle-v1", deployment_id: "D", run_id: "R", track_model_used: "dead_reckoning",
     origin: { lat: 35.5, lon: -45.7 }, fixes: [], t0: 0, rate_hz: 1, count: n,
-    columns: names.map((name, k) => ({ name, offset_bytes: k * n * 4 })),
+    columns: names.map((name, k) => ({ name, unit: units[name], offset_bytes: k * n * 4 })),
     bounds: { lat: [35.5, 35.6], lon: [-45.7, -45.6], depth_m: [0, 0] },
     provenance: { sim_git_commit: "x", sim_git_dirty: false },
     ...more,
@@ -130,6 +131,7 @@ describe("inspector vectors", () => {
     expect(placementOf(tr)).toEqual({ turnDeg: 40, scale: 1.5 });
     const s = inspectorSample(tr, 0, "north");
     expect(s.headingDeg).toBeCloseTo(90, 4);
+    expect(s.placedHeadingDeg).toBeCloseTo(130, 4); // the bundle's heading, after the turn
     near(s.water!, 1, 0, 0);
   });
 
@@ -142,5 +144,79 @@ describe("inspector vectors", () => {
     expect(bare.water).toBeNull();
     expect(bare.ground).toBeNull();
     expect(cmPerS(bare.ground)).toBe("--");
+  });
+});
+
+describe("inspector accelerations", () => {
+  const G = 9.81;
+  const D2R = Math.PI / 180;
+  /** The static vector the exported bundles carry at this pitch and roll: pitch = atan2(-x, hypot(y, z)), roll = atan2(y, z). */
+  const staticAt = (p: number, r: number) => [-G * Math.sin(p * D2R), G * Math.cos(p * D2R) * Math.sin(r * D2R), G * Math.cos(p * D2R) * Math.cos(r * D2R)];
+  const accel = (n: number, s: number[], d: number[]) => ({
+    accel_static_x: new Array<number>(n).fill(s[0]!),
+    accel_static_y: new Array<number>(n).fill(s[1]!),
+    accel_static_z: new Array<number>(n).fill(s[2]!),
+    accel_dynamic_x: new Array<number>(n).fill(d[0]!),
+    accel_dynamic_y: new Array<number>(n).fill(d[1]!),
+    accel_dynamic_z: new Array<number>(n).fill(d[2]!),
+  });
+
+  it("maps the tag's axes (x head, y right, z down) onto the model's", () => {
+    near(tagToBody(1, 0, 0), 0, 0, -1); // head
+    near(tagToBody(0, 1, 0), 1, 0, 0); // right
+    near(tagToBody(0, 0, 1), 0, -1, 0); // belly
+  });
+
+  it("draws gravity straight down when the attitude came from the same static vector", () => {
+    for (const [h, p, r] of [
+      [0, 0, 0],
+      [37, 25, -40],
+      [250, -60, 120],
+    ] as const) {
+      const tr = track({ heading: [h, h], pitch: [p, p], roll: [r, r] }, accel(2, staticAt(p, r), [0, 0, 0]));
+      for (const frame of ["north", "heading"] as const) near(inspectorSample(tr, 0, frame).gravity!, 0, -G, 0);
+    }
+  });
+
+  it("turns the dynamic acceleration with the body, and labels it in m/s^2", () => {
+    const tr = track({ heading: [90, 90] }, accel(2, staticAt(0, 0), [2, 0, 0])); // surging forward, heading east
+    near(inspectorSample(tr, 0, "north").dynamic!, 2, 0, 0);
+    near(inspectorSample(tr, 0, "heading").dynamic!, 0, 0, -2);
+    expect(mPerS2(inspectorSample(tr, 0, "north").dynamic)).toBe("2.0 m/s²");
+    const rolled = track({ heading: [0, 0], roll: [90, 90] }, accel(2, staticAt(0, 90), [0, 1, 0])); // right side down
+    near(inspectorSample(rolled, 0, "north").dynamic!, 0, -1, 0); // toward the right side, now straight down
+  });
+
+  it("reads the attitude for the readout", () => {
+    const tr = track({ heading: [10, 20], pitch: [4, 8], roll: [350, 10] });
+    const s = inspectorSample(tr, 0.5, "north");
+    expect(s.pitchDeg).toBeCloseTo(6, 5);
+    expect(((s.rollDeg % 360) + 360) % 360).toBeCloseTo(0, 4); // the short way across 0
+    expect(s.placedHeadingDeg).toBeCloseTo(15, 4);
+  });
+
+  it("has no accelerations unless all six columns are there", () => {
+    const { accel_dynamic_z: _drop, ...five } = accel(2, staticAt(0, 0), [1, 1, 1]);
+    void _drop;
+    const tr = track({ heading: [0, 0] }, five);
+    expect(tr.accel).toBeNull();
+    const s = inspectorSample(tr, 0, "north");
+    expect(s.dynamic).toBeNull();
+    expect(s.gravity).toBeNull();
+    expect(mPerS2(s.dynamic)).toBe("--");
+  });
+});
+
+describe("inspector acceleration units", () => {
+  it("converts a run's g to m/s^2, and leaves m/s^2 alone", () => {
+    const names = ["static_x", "static_y", "static_z", "dynamic_x", "dynamic_y", "dynamic_z"].map((s) => `accel_${s}`);
+    const cols = (vals: number[]) => Object.fromEntries(names.map((nm, k) => [nm, [vals[k]!, vals[k]!]]));
+    const inG = track({ heading: [90, 90] }, cols([0, 0, 1, 0.2, 0, 0]), {}, Object.fromEntries(names.map((nm) => [nm, "g"])));
+    const inSI = track({ heading: [90, 90] }, cols([0, 0, 9.80665, 0.2 * 9.80665, 0, 0]), {}, Object.fromEntries(names.map((nm) => [nm, "m/s^2"])));
+    for (const tr of [inG, inSI]) {
+      const s = inspectorSample(tr, 0, "north");
+      near(s.gravity!, 0, -9.80665, 0);
+      near(s.dynamic!, 0.2 * 9.80665, 0, 0); // forward, heading east
+    }
   });
 });
