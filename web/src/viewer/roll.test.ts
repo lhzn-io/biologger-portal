@@ -20,6 +20,8 @@ function track(roll: number[], extra: Partial<Track> = {}): Track {
     odba: null,
     rollUnwrapped: null,
     rollQuality: null,
+    current: null,
+    speed: null,
     lat: new Float64Array(n),
     lon: new Float64Array(n),
     units: {},

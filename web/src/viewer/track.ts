@@ -25,6 +25,28 @@ export interface TrackManifest {
   columns: { name: string; unit?: string; offset_bytes: number }[];
   bounds: { lat: [number, number]; lon: [number, number]; depth_m: [number, number] };
   provenance: { sim_git_commit: string; sim_git_dirty: boolean };
+  /** The ordered steps that made the track (biologger-sim core/provenance.py); absent in older bundles. */
+  pipeline?: PipelineStep[];
+}
+
+export interface PipelineStep {
+  step: string;
+  method: string;
+  version: number;
+  status: "applied" | "failed";
+  params: Record<string, unknown>;
+}
+
+/** The ocean current the track was corrected with, as the exporter applied it (m/s, at the animal's depth). */
+export interface TrackCurrent {
+  east: Float32Array;
+  north: Float32Array;
+  /** Speed, NaN where `missing` is set (the exporter used still water there). */
+  speed: Float32Array;
+  /** 1 where a forcing sample was missing since the previous sample, else 0. */
+  missing: Float32Array;
+  /** The ocean model forcingkit used ("necofs", "hycom"), from the current_correction step. */
+  donor: string | null;
 }
 
 export interface Track {
@@ -47,6 +69,10 @@ export interface Track {
   rollUnwrapped: Float32Array | null;
   /** Exporter's roll quality per sample (0 fine, nonzero an uncertain unwrap step or ill-conditioned roll). */
   rollQuality: Float32Array | null;
+  /** The applied ocean current; null when the track had no current correction. */
+  current: TrackCurrent | null;
+  /** Through-water speed dead reckoning used (m/s, before placement); null in bundles without it. */
+  speed: Float32Array | null;
   lat: Float64Array;
   lon: Float64Array;
   units: Record<string, string>;
@@ -96,6 +122,17 @@ export function parseTrack(manifest: TrackManifest, buffer: ArrayBuffer): Track 
     heading = new Float32Array(n).fill(start && end ? bearingDeg(start.lat, start.lon, end.lat, end.lon) : 0);
     headingSource = "fix bearing";
   }
+  const cEast = optional("current_east_m_s");
+  const cNorth = optional("current_north_m_s");
+  let current: TrackCurrent | null = null;
+  if (cEast && cNorth) {
+    const missing = optional("current_missing") ?? new Float32Array(n);
+    const speed = new Float32Array(n);
+    for (let i = 0; i < n; i++) speed[i] = missing[i] ? NaN : Math.hypot(cEast[i]!, cNorth[i]!);
+    const cc = manifest.pipeline?.filter((s) => s.step === "current_correction").at(-1);
+    const donor = cc?.params.donor_used;
+    current = { east: cEast, north: cNorth, speed, missing, donor: typeof donor === "string" ? donor : null };
+  }
   return {
     manifest,
     count: n,
@@ -111,6 +148,8 @@ export function parseTrack(manifest: TrackManifest, buffer: ArrayBuffer): Track 
     odba: optional("odba"),
     rollUnwrapped: optional("roll_unwrapped_deg", "roll_cum_deg"),
     rollQuality: optional("roll_quality", "roll_qc"),
+    current,
+    speed: optional("speed_m_s"),
     lat,
     lon,
     units: Object.fromEntries(manifest.columns.map((c) => [c.name, c.unit ?? ""])),

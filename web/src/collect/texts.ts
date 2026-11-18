@@ -1,6 +1,7 @@
 /** Prompt text for each collectable view, built from the same values the view renders. */
 import { duration, utc } from "../lib/format";
 import type { ActivityScale } from "../viewer/activity";
+import { donorName, type CurrentScale } from "../viewer/current";
 import type { DeploymentDetail, Matrix, ValidationRun } from "../lib/types";
 import type { ChartSeries } from "../viewer/Charts";
 import type { DepthScale, Dem } from "../viewer/dem";
@@ -100,6 +101,14 @@ export function readoutText(track: Track, dem: Dem | null, cursor: number): stri
     ["roll_deg", fmt(r.roll_deg)],
     [`vedba (${track.units.vedba || "m/s^2"})`, fmt(r.vedba, 3)],
     [`odba (${track.units.odba || track.units.vedba || "m/s^2"})`, r.odba == null ? "not in this track bundle" : fmt(r.odba, 3)],
+    [
+      "ocean_current (model, applied to the track)",
+      r.current == null
+        ? "no current correction in this track"
+        : Number.isFinite(r.current.speed_m_s)
+          ? `${fmt(r.current.speed_m_s, 2)} m/s toward ${fmt(r.current.toward_deg, 0)} deg from ${donorName(track.current?.donor ?? null)}`
+          : "no model value here (still water used)",
+    ],
   ]);
 }
 
@@ -110,6 +119,7 @@ export function mapText(
   depth: DepthScale = { max: 600, ticks: [], basis: "track" },
   species?: string,
   activity?: ActivityScale | null,
+  current?: CurrentScale | null,
 ): string {
   const span = depth.basis === "species" && species ? `the deepest of all ${species} tracks` : "this track's deepest point";
   const m = track.manifest;
@@ -133,7 +143,9 @@ export function mapText(
       `terrain by seafloor depth, light blue at 0 m to dark navy at 3000 m and deeper; ` +
         (activity
           ? `track by ODBA averaged over each drawn stretch of about ${Math.round(activity.stretch_s)} s, pale yellow at 0 through red-orange to dark violet at ${activity.max} ${activity.unit} and above (0 to this track's 98th percentile, rounded up)`
-          : `track by the animal's depth, pale yellow at the surface to magenta at ${depth.max} m (a scale fitted to ${span}, rounded up)`),
+          : current
+            ? `track by the speed of the ${donorName(current.donor)} model current the track was corrected with, averaged over each drawn stretch of about ${Math.round(current.stretch_s)} s, pale green at 0 to dark green at ${current.max} m/s and above (0 to this track's 98th percentile, rounded up); gray where the model had no value`
+            : `track by the animal's depth, pale yellow at the surface to magenta at ${depth.max} m (a scale fitted to ${span}, rounded up)`),
     ],
   ]);
 }

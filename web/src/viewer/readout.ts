@@ -1,3 +1,4 @@
+import { towardDeg } from "./current";
 import { elevationAt, type Dem } from "./dem";
 import { timeOf, type Track } from "./track";
 
@@ -16,6 +17,9 @@ export interface Readout {
   roll_deg: number;
   vedba: number;
   odba: number | null;
+  /** The applied current: speed (m/s) and the direction it flows toward (deg); null without a correction, and
+   * NaN speed where the model had no value. */
+  current: { speed_m_s: number; toward_deg: number } | null;
 }
 
 /** The values at one sample: what the page shows beside the cursor and what the prompt carries. */
@@ -40,6 +44,12 @@ export function readoutAt(track: Track, dem: Dem | null, i: number): Readout {
     roll_deg: track.roll[i]!,
     vedba: track.vedba[i]!,
     odba: track.odba ? track.odba[i]! : null,
+    current: track.current
+      ? {
+          speed_m_s: track.current.speed[i]!,
+          toward_deg: Number.isFinite(track.current.speed[i]!) ? towardDeg(track.current.east[i]!, track.current.north[i]!) : NaN,
+        }
+      : null,
   };
 }
 

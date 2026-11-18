@@ -32,6 +32,7 @@ export default function SceneControls({
   trackColor,
   onTrackColor,
   hasOdba,
+  hasCurrent,
   speciesScale,
   trackScale,
   species,
@@ -59,6 +60,8 @@ export default function SceneControls({
   onTrackColor: (c: TrackColor) => void;
   /** The track bundle has an ODBA column. */
   hasOdba: boolean;
+  /** The track bundle has the applied ocean current. */
+  hasCurrent: boolean;
   trackScale: DepthScale;
   species?: string;
 }) {
@@ -109,7 +112,13 @@ export default function SceneControls({
           <fieldset className="space-y-1">
             <legend className="mb-1">Track color</legend>
             <label className="flex items-start gap-2">
-              <input type="radio" name="track-color" className="mt-0.5" checked={trackColor === "depth" || !hasOdba} onChange={() => onTrackColor("depth")} />
+              <input
+                type="radio"
+                name="track-color"
+                className="mt-0.5"
+                checked={trackColor === "depth" || (trackColor === "odba" && !hasOdba) || (trackColor === "current" && !hasCurrent)}
+                onChange={() => onTrackColor("depth")}
+              />
               <span>Animal depth</span>
             </label>
             <label className={`flex items-start gap-2 ${hasOdba ? "" : "opacity-50"}`}>
@@ -117,6 +126,22 @@ export default function SceneControls({
               <span>
                 ODBA (body acceleration)
                 <span className="block opacity-80">{hasOdba ? "an activity measure, averaged along the line" : "not in this track bundle"}</span>
+              </span>
+            </label>
+            <label className={`flex items-start gap-2 ${hasCurrent ? "" : "opacity-50"}`}>
+              <input
+                type="radio"
+                name="track-color"
+                className="mt-0.5"
+                disabled={!hasCurrent}
+                checked={trackColor === "current" && hasCurrent}
+                onChange={() => onTrackColor("current")}
+              />
+              <span>
+                Ocean current speed
+                <span className="block opacity-80">
+                  {hasCurrent ? "the model current the track was corrected with, averaged along the line" : "no current correction in this track"}
+                </span>
               </span>
             </label>
           </fieldset>

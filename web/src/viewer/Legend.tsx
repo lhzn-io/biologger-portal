@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { activityColor, type ActivityScale } from "./activity";
+import { currentColor, donorName, type CurrentScale } from "./current";
 import { elevationColor, trackDepthColor, type DepthScale } from "./dem";
 
 type Rgb = [number, number, number];
@@ -52,9 +53,19 @@ function ColorBar({
 
 /**
  * Color keys for the terrain and the track: by depth (`depth`, meters below the surface; `species` names whose
- * tracks a species scale spans) or by ODBA (`activity`).
+ * tracks a species scale spans), by ODBA (`activity`) or by the applied current's speed (`current`).
  */
-export function Legend({ depth, activity, species }: { depth?: DepthScale | null; activity?: ActivityScale | null; species?: string }) {
+export function Legend({
+  depth,
+  activity,
+  current,
+  species,
+}: {
+  depth?: DepthScale | null;
+  activity?: ActivityScale | null;
+  current?: CurrentScale | null;
+  species?: string;
+}) {
   return (
     <div className="pointer-events-none absolute top-2 left-2 w-44 space-y-1 rounded bg-panel/85 px-2 py-1.5 text-[10px] text-muted">
       <ColorBar label="Seafloor depth (m)" max={3000} color={(d) => elevationColor(-d)} ticks={[0, 1000, 2000, 3000]} />
@@ -75,6 +86,15 @@ export function Legend({ depth, activity, species }: { depth?: DepthScale | null
           max={activity.max}
           color={(v) => activityColor(v, activity.max)}
           ticks={activity.ticks}
+        />
+      )}
+      {current && (
+        <ColorBar
+          label="Ocean current (m/s)"
+          note={`${donorName(current.donor)} model, mean per ${Math.round(current.stretch_s)} s; gray: no value`}
+          max={current.max}
+          color={(v) => currentColor(v, current.max)}
+          ticks={current.ticks}
         />
       )}
     </div>

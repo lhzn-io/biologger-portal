@@ -13,6 +13,7 @@ import Scene3D, { type SceneView } from "../viewer/Scene3D";
 import SceneControls from "../viewer/SceneControls";
 import { logVisit } from "../lib/visits";
 import { odbaScale } from "../viewer/activity";
+import { currentScale } from "../viewer/current";
 import { advance, DEFAULT_SPEED, parseSpeed, SPEED_STEPS, speedLabel, stepSpeed } from "../viewer/playback";
 import { DEFAULT_CHART_PICK, DEFAULT_PLAY_CAMERA, DEFAULT_TRACK_COLOR, PLAY_CAMERAS, readPageLink, writePageLink, type ChartPick, type PlayCamera, type TrackColor } from "../viewer/link";
 import { indexAt, loadTrack, timeOf } from "../viewer/track";
@@ -99,9 +100,13 @@ export default function TrackPage() {
   }, [tr, trackList, depId, runId]);
   const species = scales.species;
   const scale = basis === "species" && scales.ofSpecies ? scales.ofSpecies : scales.track;
-  // Track colors: by depth, or by ODBA when the viewer picks it and the bundle has it.
+  // Track colors: by depth, or by ODBA or the applied current when the viewer picks one and the bundle has it.
   const activity = useMemo(() => (tr ? odbaScale(tr) : null), [tr]);
+  const flow = useMemo(() => (tr ? currentScale(tr) : null), [tr]);
   const byOdba = trackColor === "odba" && activity != null;
+  const byCurrent = trackColor === "current" && flow != null;
+  const colorBy: TrackColor = byOdba ? "odba" : byCurrent ? "current" : "depth";
+  const colorMax = byOdba ? activity.max : byCurrent ? flow.max : scale.max;
   useEffect(() => {
     if (!tr || !playing) return;
     let last = performance.now();
@@ -252,6 +257,12 @@ export default function TrackPage() {
           <Item label="Roll" value={`${fmt(r.roll_deg)} deg`} />
           <Item label={`VeDBA (${tr.units.vedba || "m/s^2"})`} value={fmt(r.vedba, 3)} />
           {r.odba != null && <Item label={`ODBA (${tr.units.odba || tr.units.vedba || "m/s^2"})`} value={fmt(r.odba, 3)} />}
+          {r.current != null && (
+            <Item
+              label="Ocean current (model)"
+              value={Number.isFinite(r.current.speed_m_s) ? `${fmt(r.current.speed_m_s, 2)} m/s toward ${fmt(r.current.toward_deg, 0)} deg` : "no value"}
+            />
+          )}
           <Item label="From start fix" value={`${fmt(r.north_m / 1000, 2)} km N, ${fmt(r.east_m / 1000, 2)} km E`} />
         </dl>
         <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
@@ -266,10 +277,10 @@ export default function TrackPage() {
         </div>
       </CollectPanel>
 
-      <CollectPanel id={`${key}:scene`} title={`3D view, ${depId}`} text={() => mapText(tr, dem.data ?? null, exag, scale, species, byOdba ? activity : null)}>
+      <CollectPanel id={`${key}:scene`} title={`3D view, ${depId}`} text={() => mapText(tr, dem.data ?? null, exag, scale, species, byOdba ? activity : null, byCurrent ? flow : null)}>
         <div ref={sceneBox} className={studio ? "fixed inset-0 z-[100] bg-[#0b1220]" : "relative h-[36rem] bg-[#0b1220]"}>
-          <Scene3D track={tr} dem={dem.data ?? null} cursor={pos} exaggeration={exag} colorBy={byOdba ? "odba" : "depth"} colorMax={byOdba ? activity.max : scale.max} follow={following} chase={chasing} species={species} viewRef={view} linkWrite={linkWrite} />
-          <Legend depth={byOdba ? null : scale} activity={byOdba ? activity : null} species={species} />
+          <Scene3D track={tr} dem={dem.data ?? null} cursor={pos} exaggeration={exag} colorBy={colorBy} colorMax={colorMax} follow={following} chase={chasing} species={species} viewRef={view} linkWrite={linkWrite} />
+          <Legend depth={colorBy === "depth" ? scale : null} activity={byOdba ? activity : null} current={byCurrent ? flow : null} species={species} />
           <SceneControls
             onFocus={() => view.current?.focusAnimal()}
             studio={studio}
@@ -308,6 +319,7 @@ export default function TrackPage() {
               setTrackColor(c);
             }}
             hasOdba={activity != null}
+            hasCurrent={flow != null}
             speciesScale={scales.ofSpecies}
             trackScale={scales.track}
             species={species}

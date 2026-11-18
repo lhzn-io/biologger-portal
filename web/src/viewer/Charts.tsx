@@ -7,6 +7,7 @@ import "./charts-local.css";
 import { CollectButton, useCollectItem } from "../collect/collect";
 import { lines } from "../collect/prompt";
 import { chartText } from "../collect/texts";
+import { donorName } from "./current";
 import { elevationAt, type Dem } from "./dem";
 import { postureByDepth, quantile, UPRIGHT_DEG, wrap180, type SideStats } from "./posture";
 import { analyzeRoll, PITCH_LIMIT_DEG, STEP_AMBIGUOUS_DEG } from "./roll";
@@ -315,6 +316,69 @@ function postureSeries(track: Track, idx: number[], xs: number[]): ChartSeries {
   };
 }
 
+const CURRENT_SPEED = "#22c55e";
+const CURRENT_EAST = "#f59e0b";
+const CURRENT_NORTH = "#60a5fa";
+
+/**
+ * The ocean current the track was corrected with: speed, then its east and north components, at the drawn samples
+ * (the exporter's values at those times). Stretches where the model had no value, so the exporter used still water,
+ * are shaded and drawn as gaps.
+ */
+function currentSeries(track: Track, idx: number[], xs: number[]): ChartSeries | null {
+  const c = track.current;
+  if (!c) return null;
+  const n = track.count;
+  const doubt = Uint8Array.from(c.missing, (v) => (v ? 1 : 0));
+  const flagged = spanFlags(idx, n, doubt);
+  const at = (a: Float32Array) => idx.map((i, j) => (flagged[j] ? NaN : a[i]!));
+  const spans: Span[] = [];
+  let from: number | null = null;
+  flagged.forEach((f, j) => {
+    if (f && from == null) from = xs[Math.max(0, j - 1)]!;
+    if ((!f || j === flagged.length - 1) && from != null) {
+      spans.push({
+        x0: from,
+        x1: f ? timeOf(track, n - 1) : xs[j]!,
+        fill: "rgba(148, 163, 184, 0.3)",
+        title: "No model current here (on land, below the model's seafloor, or outside its grid): the track used still water",
+      });
+      from = null;
+    }
+  });
+  const speeds = Array.from(c.speed).filter(Number.isFinite).sort((a, b) => a - b);
+  const missingShare = c.missing.reduce((s, v) => s + (v ? 1 : 0), 0) / Math.max(1, n);
+  const model = donorName(c.donor);
+  const ms = (v: number) => `${v.toFixed(2)} m/s`;
+  return {
+    id: "current",
+    title: "Ocean current at the animal (m/s)",
+    unit: "m/s",
+    xs,
+    lines: [
+      { ys: at(c.speed), color: CURRENT_SPEED, label: "Speed", fmt: ms },
+      { ys: at(c.east), color: CURRENT_EAST, label: "Eastward", width: 1, fmt: ms },
+      { ys: at(c.north), color: CURRENT_NORTH, label: "Northward", width: 1, fmt: ms },
+    ],
+    spans,
+    zero: true,
+    minPad: 0.02,
+    summary: speeds.length
+      ? `${model}: median ${ms(quantile(speeds, 0.5))}, 95th percentile ${ms(quantile(speeds, 0.95))}`
+      : `${model}: no values`,
+    caption:
+      `The current the dead-reckoned track was corrected with, from the ${model} ocean model through forcingkit: ` +
+      `sampled once a minute along the reconstructed track at the animal's depth and interpolated between. It is the ` +
+      `model's current, not a measurement, at the model's resolution. Shaded where the model had no value ` +
+      `(${(100 * missingShare).toFixed(1)} % of the record); the track used still water there.`,
+    notes: [
+      ["ocean_model", model],
+      ["sampling", "once a minute along the reconstructed track, at the animal's depth, interpolated between"],
+      ["no_value_share", `${(100 * missingShare).toFixed(1)} % of samples (still water used)`],
+    ],
+  };
+}
+
 /** The series the charts draw, from the same arrays the map and 3D view use (and the Collect prompt reads). */
 export function chartSeries(track: Track, dem: Dem | null): ChartSeries[] {
   const idx = strideIndices(track.count, CHART_POINTS);
@@ -329,6 +393,7 @@ export function chartSeries(track: Track, dem: Dem | null): ChartSeries[] {
   const odba: ChartSeries[] = track.odba
     ? [{ id: "odba", title: `ODBA (${track.units.odba || unit})`, unit: "", xs, lines: [{ ys: pick(track.odba), color: "#a78bfa", label: "ODBA" }] }]
     : [];
+  const current = currentSeries(track, idx, xs);
   return [
     { id: "depth", title: "Depth (m, below the surface)", unit: "m", xs, lines: depthLines },
     { id: "vedba", title: `VeDBA (${unit})`, unit: "", xs, lines: [{ ys: pick(track.vedba), color: "#3b9cff", label: "VeDBA" }] },
@@ -336,6 +401,7 @@ export function chartSeries(track: Track, dem: Dem | null): ChartSeries[] {
     { id: "pitch", title: "Pitch (degrees)", unit: "deg", xs, lines: [{ ys: pick(track.pitch), color: "#34d399", label: "Pitch" }] },
     postureSeries(track, idx, xs),
     rollSeries(track, idx, xs),
+    ...(current ? [current] : []),
   ];
 }
 

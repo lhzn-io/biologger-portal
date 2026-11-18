@@ -7,6 +7,7 @@ import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { createVantage, type Vantage } from "../vendor/vantagekit/vantagekit-three.js";
 import { activityColor, LINE_POINTS, segmentMeans } from "./activity";
 import { loadAnimalModel } from "./animal";
+import { currentColor } from "./current";
 import { angleAt, valueAt } from "./playback";
 import { elevationAt, elevationColor, trackDepthColor, type Dem } from "./dem";
 import type { TrackColor } from "./link";
@@ -94,9 +95,10 @@ export default function Scene3D({
   cursor: number;
   exaggeration: number;
   /** Depth (m) the track's color ramp reaches at its deep end. */
-  /** What the track is colored by: the animal's depth, or its ODBA (a mean per drawn stretch). */
+  /** What the track is colored by: the animal's depth, its ODBA, or the applied current's speed (means per drawn
+   * stretch for the last two). */
   colorBy?: TrackColor;
-  /** The value (m, or ODBA's unit) the track's color ramp reaches at its far end. */
+  /** The value (m, ODBA's unit, or m/s) the track's color ramp reaches at its far end. */
   colorMax: number;
   /** Hold the orbit point on the animal as the cursor moves (orbit and zoom only; no pan). */
   follow?: boolean;
@@ -528,6 +530,8 @@ export default function Scene3D({
 
 function lineColors(track: Track, idx: number[], colorBy: TrackColor, max: number): number[] {
   if (colorBy === "odba" && track.odba) return Array.from(segmentMeans(track.odba, idx)).flatMap((v) => activityColor(v, max));
+  if (colorBy === "current" && track.current)
+    return Array.from(segmentMeans(track.current.speed, idx)).flatMap((v) => currentColor(v, max));
   return idx.flatMap((i) => trackDepthColor(track.depth[i]!, max));
 }
 

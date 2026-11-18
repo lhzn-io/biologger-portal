@@ -19,8 +19,10 @@ export interface PageLink {
   speed?: number;
 }
 
-/** The 3D view's track colors: the animal's depth, or its ODBA (body acceleration, an activity measure). */
-export type TrackColor = "depth" | "odba";
+/** The 3D view's track colors: the animal's depth, its ODBA (body acceleration, an activity measure), or the speed
+ * of the ocean current the track was corrected with. */
+export type TrackColor = "depth" | "odba" | "current";
+export const TRACK_COLORS: TrackColor[] = ["depth", "odba", "current"];
 /** Tracks are colored by ODBA unless the viewer picks depth (or the bundle has no ODBA). */
 export const DEFAULT_TRACK_COLOR: TrackColor = "odba";
 
@@ -58,7 +60,7 @@ export function readPageLink(search: string): PageLink {
   const pick = p.get("pick");
   if (CHART_PICKS.includes(pick as ChartPick)) out.pick = pick as ChartPick;
   const color = p.get("color");
-  if (color === "depth" || color === "odba") out.color = color;
+  if (TRACK_COLORS.includes(color as TrackColor)) out.color = color as TrackColor;
   const speed = Number(p.get("speed"));
   if (p.has("speed") && speed >= SPEED_RANGE[0] && speed <= SPEED_RANGE[1]) out.speed = speed;
   return out;
