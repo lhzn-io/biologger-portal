@@ -13,6 +13,8 @@
 #   CLOUDFLARE_ACCOUNT_ID   the account that holds the lhzn.io zone
 #   PORTAL_DATASETS_ROOT    defaults to ~/Projects/whoi-mpg/datasets
 #   PORTAL_MODELS_DIR       the licensed animal models (.glb); defaults to ~/Projects/whoi-mpg/models/cgtrader
+#   PORTAL_HUB_DOCS         the built documentation the hub serves at /docs (deploy/docs.sh); defaults to
+#                           ~/.local/share/biologger-portal/docs
 # Authentication: `npx wrangler@4 login` once on this machine.
 set -euo pipefail
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -80,11 +82,19 @@ cd "$REPO/web"
 [ node_modules/.package-lock.json -nt package-lock.json ] || npm ci --no-audit --no-fund
 npm run -s build:published
 
-# 4. Assemble: build + snapshot + models + headers.
+# 4. Assemble: build + snapshot + models + documentation + headers.
 cp -R "$SNAPSHOT/data" dist-published/
 if [ -f "$MODELS_OUT/models.json" ]; then
   mkdir -p dist-published/models
   cp "$MODELS_OUT"/*.blgm "$MODELS_OUT/models.json" dist-published/models/
+fi
+# The documentation, as the hub serves it at /docs (biologger-sim's at /docs/sim/, the user guide at /docs/guide/).
+DOCS="${PORTAL_HUB_DOCS:-$HOME/.local/share/biologger-portal/docs}"
+if [ -f "$DOCS/sim/index.html" ] || [ -f "$DOCS/guide/index.html" ]; then
+  mkdir -p dist-published/docs
+  cp -R "$DOCS"/. dist-published/docs/
+else
+  echo "no built documentation at $DOCS: the viewer's docs links will not resolve"
 fi
 cp "$REPO/deploy/cloudflare/_headers" dist-published/_headers
 echo "assembled $(du -sh dist-published | cut -f1) in web/dist-published"

@@ -48,6 +48,12 @@ export default function App() {
               {n.label}
             </NavLink>
           ))}
+          <a href="/docs/sim/" className="text-muted hover:text-ink" title="biologger-sim documentation: tracks, currents and the pipeline">
+            Sim docs
+          </a>
+          <a href="/docs/guide/" className="text-muted hover:text-ink" title="The portal's user guide">
+            Guide
+          </a>
         </nav>
         <span className="ml-auto flex items-center gap-4">
           <CollectControls />

@@ -14,6 +14,11 @@
   Cache-Control: private, no-cache
   X-Robots-Tag: noindex, nofollow
 
+# The documentation changes with each publish under the same names.
+/docs/*
+  Cache-Control: private, no-cache
+  X-Robots-Tag: noindex, nofollow
+
 /*
   X-Robots-Tag: noindex, nofollow
   X-Content-Type-Options: nosniff

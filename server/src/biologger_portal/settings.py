@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     web_dist: Path | None = None
     # The animal models packed (encrypted) for this build by deploy/hub.sh, served at /models.
     packed_models_dir: Path | None = None
+    # Built documentation (Sphinx HTML) served at /docs: one folder per set, such as sim/ and guide/.
+    docs_dir: Path | None = None
     topobathykit_url: str = "http://garnet.internal:9595"
     # Cloudflare Access: team domain (https://<team>.cloudflareaccess.com) and application audience tag.
     # Both empty means local development, where writes are allowed only from the loopback interface.

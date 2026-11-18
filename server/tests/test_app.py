@@ -64,3 +64,29 @@ def test_models_are_absent_without_a_packed_folder(tmp_path: Path) -> None:
     (dist / "index.html").write_text("index")
     client = TestClient(create_app(Settings(datasets_root=tmp_path, web_dist=dist)))
     assert client.get("/models/models.json").status_code == 404
+
+
+def test_docs_are_served_at_docs(tmp_path: Path) -> None:
+    docs = tmp_path / "docs"
+    (docs / "sim" / "_static").mkdir(parents=True)
+    (docs / "sim" / "index.html").write_text("<html>sim docs</html>")
+    (docs / "sim" / "_static" / "lhzn.css").write_text("body {}")
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    (dist / "index.html").write_text("<html>app</html>")
+    client = TestClient(create_app(Settings(datasets_root=tmp_path, web_dist=dist, docs_dir=docs)))
+    assert client.get("/docs/sim/").text == "<html>sim docs</html>"
+    assert client.get("/docs/sim/_static/lhzn.css").text == "body {}"
+    r = client.get("/docs/sim", follow_redirects=False)
+    assert r.status_code == 308 and r.headers["location"] == "/docs/sim/"
+    assert client.get("/docs/sim/missing.html").status_code == 404
+    assert client.get("/docs/%2e%2e/dist/index.html").status_code == 404
+
+
+def test_docs_are_absent_without_a_docs_folder(tmp_path: Path) -> None:
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    (dist / "index.html").write_text("<html>app</html>")
+    client = TestClient(create_app(Settings(datasets_root=tmp_path, web_dist=dist)))
+    assert client.get("/docs/sim/").status_code == 404
+    assert client.get("/docs").status_code == 404

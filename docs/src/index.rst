@@ -9,6 +9,7 @@ track over fused bathymetry.
    :maxdepth: 1
 
    deploy
+   currents
 
 Sections are added as each part ships:
 

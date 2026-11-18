@@ -9,7 +9,7 @@ from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 
 from . import __version__
 from .db import Catalog
@@ -18,7 +18,7 @@ from .routes import agent, catalog, health, runner, sheets, sim, topobathy, trac
 from .settings import Settings, get_settings
 from .topobathy import TopobathyProxy
 
-API_PREFIXES = ("api/", "tracks/", "topobathy/", "models/")
+API_PREFIXES = ("api/", "tracks/", "topobathy/", "models/", "docs")
 MODEL_SUFFIXES = (".blgm", ".json")
 
 
@@ -60,6 +60,7 @@ def create_app(
     app.include_router(runner.router)
     app.include_router(agent.router)
     _mount_models(app, settings.packed_models_dir)
+    _mount_docs(app, settings.docs_dir)
 
     dist = settings.web_dist
     if dist is not None and (dist / "index.html").is_file():
@@ -79,6 +80,32 @@ def _mount_models(app: FastAPI, packed: Path | None) -> None:
         if candidate.parent != root or candidate.suffix not in MODEL_SUFFIXES or not candidate.is_file():
             raise HTTPException(status_code=404)
         # Each hub build packs them under a new key, so a browser revalidates instead of keeping an old copy.
+        return FileResponse(candidate, headers={"Cache-Control": "no-cache"})
+
+
+def _mount_docs(app: FastAPI, docs: Path | None) -> None:
+    """Serve the built documentation at /docs (biologger-sim's at /docs/sim/, this user guide at /docs/guide/).
+
+    The HTML is built outside the image and mounted read-only. Through the tunnel it sits behind Cloudflare Access
+    like the rest of the hub; it is never part of the published snapshot.
+    """
+
+    @app.get("/docs", include_in_schema=False, response_model=None)
+    @app.get("/docs/{path:path}", include_in_schema=False, response_model=None)
+    def doc(path: str = "") -> FileResponse | RedirectResponse:
+        if docs is None:
+            raise HTTPException(status_code=404)
+        root = docs.resolve()
+        candidate = (root / path).resolve()
+        if not candidate.is_relative_to(root):
+            raise HTTPException(status_code=404)
+        if candidate.is_dir():
+            if path and not path.endswith("/"):
+                # Sphinx pages link relative to their folder, so a folder needs its trailing slash.
+                return RedirectResponse(f"/docs/{path}/", status_code=308)
+            candidate = candidate / "index.html"
+        if not candidate.is_file():
+            raise HTTPException(status_code=404)
         return FileResponse(candidate, headers={"Cache-Control": "no-cache"})
 
 

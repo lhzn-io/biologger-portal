@@ -25,11 +25,14 @@ services:
       PORTAL_DATASETS_ROOT: /data
       PORTAL_WEB_DIST: /app/web/dist
       PORTAL_PACKED_MODELS_DIR: /models
+      PORTAL_DOCS_DIR: /docs
     volumes:
       # The canonical datasets folder: read-write, for uploads, the catalog and caches in .portal/.
       - ${DATASETS_DIR:-/Users/lhzn/Projects/whoi-mpg/datasets}:/data
       # The animal models deploy/hub.sh packed for this build (encrypted; outside the repository and the image).
       - ${PORTAL_HUB_MODELS:-${HOME}/.cache/biologger-portal/hub-models}:/models:ro
+      # Built documentation served at /docs (deploy/docs.sh; outside the repository and the image).
+      - ${PORTAL_HUB_DOCS:-${HOME}/.local/share/biologger-portal/docs}:/docs:ro
     extra_hosts:
       # topobathykit runs on the host; containers reach it by this name.
       - "garnet.internal:host-gateway"
