@@ -16,6 +16,7 @@ import { odbaScale } from "../viewer/activity";
 import { currentScale } from "../viewer/current";
 import { advance, DEFAULT_SPEED, parseSpeed, SPEED_STEPS, speedLabel, stepSpeed } from "../viewer/playback";
 import { DEFAULT_CHART_PICK, DEFAULT_PLAY_CAMERA, DEFAULT_TRACK_COLOR, PLAY_CAMERAS, readPageLink, writePageLink, type ChartPick, type PlayCamera, type TrackColor } from "../viewer/link";
+import type { InspectorFrame } from "../viewer/inspector";
 import { indexAt, loadTrack, timeOf } from "../viewer/track";
 
 const PLAY_CAMERA_LABELS: Record<PlayCamera, string> = { free: "Free", chase: "Chase", orbit: "Orbit" };
@@ -44,6 +45,10 @@ export default function TrackPage() {
   const [pick, setPick] = useState<ChartPick>(initial.pick ?? DEFAULT_CHART_PICK);
   const [trackColor, setTrackColor] = useState<TrackColor>(initial.color ?? DEFAULT_TRACK_COLOR);
   const [basis, setBasis] = useState<DepthScale["basis"]>(initial.basis ?? "species");
+  // The physics inspector inset: hidden unless the viewer or a shared link opens it.
+  const [phys, setPhys] = useState<InspectorFrame | null>(initial.phys && initial.phys !== "off" ? initial.phys : null);
+  const [physScale, setPhysScale] = useState(1);
+  const inspector = useMemo(() => (phys ? { frame: phys, scale: physScale } : null), [phys, physScale]);
   const view = useRef<SceneView | null>(null);
   // Studio: the 3D view fills the browser window. Full screen: the browser's own full screen, of the 3D view alone.
   const [studio, setStudio] = useState(false);
@@ -68,11 +73,11 @@ export default function TrackPage() {
   const linkWrite = useRef<((p: URLSearchParams) => void) | null>(null);
   useEffect(() => {
     if (!tr) return;
-    const state = { time: timeOf(tr, cursor), exaggeration: exag, basis, follow, play: playCam, pick, color: trackColor, speed };
+    const state = { time: timeOf(tr, cursor), exaggeration: exag, basis, follow, play: playCam, pick, color: trackColor, speed, phys: phys ?? ("off" as const) };
     linkWrite.current = (p) => writePageLink(p, state);
     const id = setTimeout(() => view.current?.writeLink(), 400);
     return () => clearTimeout(id);
-  }, [tr, cursor, exag, basis, follow, playCam, pick, trackColor, speed]);
+  }, [tr, cursor, exag, basis, follow, playCam, pick, trackColor, speed, phys]);
   // While the track plays, Chase and Orbit hold the view on the animal: Chase from behind, turning with it, Orbit
   // at the angle the viewer sets with the mouse. Pausing leaves the camera where it is, back under the viewer's own
   // Follow setting.
@@ -279,7 +284,7 @@ export default function TrackPage() {
 
       <CollectPanel id={`${key}:scene`} title={`3D view, ${depId}`} text={() => mapText(tr, dem.data ?? null, exag, scale, species, byOdba ? activity : null, byCurrent ? flow : null)}>
         <div ref={sceneBox} className={studio ? "fixed inset-0 z-[100] bg-[#0b1220]" : "relative h-[36rem] bg-[#0b1220]"}>
-          <Scene3D track={tr} dem={dem.data ?? null} cursor={pos} exaggeration={exag} colorBy={colorBy} colorMax={colorMax} follow={following} chase={chasing} species={species} viewRef={view} linkWrite={linkWrite} />
+          <Scene3D track={tr} dem={dem.data ?? null} cursor={pos} exaggeration={exag} colorBy={colorBy} colorMax={colorMax} follow={following} chase={chasing} species={species} viewRef={view} linkWrite={linkWrite} inspector={inspector} />
           <Legend depth={colorBy === "depth" ? scale : null} activity={byOdba ? activity : null} current={byCurrent ? flow : null} species={species} />
           <SceneControls
             onFocus={() => view.current?.focusAnimal()}
@@ -323,6 +328,13 @@ export default function TrackPage() {
             speciesScale={scales.ofSpecies}
             trackScale={scales.track}
             species={species}
+            inspector={phys}
+            onInspector={(f) => {
+              logVisit("action", "inspector", { frame: f ?? "off" });
+              setPhys(f);
+            }}
+            inspectorScale={physScale}
+            onInspectorScale={setPhysScale}
           />
           <Credits />
           {(studio || fullscreen) && (

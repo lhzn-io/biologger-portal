@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { DepthScale } from "./dem";
+import type { InspectorFrame } from "./inspector";
 import type { ChartPick, TrackColor } from "./link";
 
 const PICKS: { value: ChartPick; label: string; note: string }[] = [
@@ -9,6 +10,9 @@ const PICKS: { value: ChartPick; label: string; note: string }[] = [
 ];
 
 const btn = "rounded border border-line bg-panel/90 px-2 py-0.5 text-muted hover:text-ink";
+
+/** Body lengths per 1 m/s the physics inspector can draw its arrows at. */
+const INSPECTOR_SCALES = [0.5, 1, 2, 4];
 
 /**
  * The 3D view's controls, top right: zoom to the animal and reset the view always shown, the rest (vertical
@@ -36,6 +40,10 @@ export default function SceneControls({
   speciesScale,
   trackScale,
   species,
+  inspector,
+  onInspector,
+  inspectorScale,
+  onInspectorScale,
 }: {
   onFocus: () => void;
   /** The view fills the browser window. */
@@ -64,6 +72,12 @@ export default function SceneControls({
   hasCurrent: boolean;
   trackScale: DepthScale;
   species?: string;
+  /** The physics inspector's frame, or null when it is hidden. */
+  inspector: InspectorFrame | null;
+  onInspector: (frame: InspectorFrame | null) => void;
+  /** Body lengths per 1 m/s in the inspector. */
+  inspectorScale: number;
+  onInspectorScale: (scale: number) => void;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -85,6 +99,15 @@ export default function SceneControls({
             {fullscreen ? "Exit full screen" : "Full screen"}
           </button>
         )}
+        <button
+          type="button"
+          className={inspector ? `${btn} text-ink` : btn}
+          aria-pressed={!!inspector}
+          onClick={() => onInspector(inspector ? null : "heading")}
+          title="The animal at its attitude with the velocities dead reckoning combined: through the water, the ocean current, and their sum over the ground"
+        >
+          Physics
+        </button>
         <button type="button" className={btn} aria-expanded={open} aria-controls="scene-controls" onClick={() => setOpen(!open)}>
           Controls {open ? "▴" : "▾"}
         </button>
@@ -143,6 +166,38 @@ export default function SceneControls({
                   {hasCurrent ? "the model current the track was corrected with, averaged along the line" : "no current correction in this track"}
                 </span>
               </span>
+            </label>
+          </fieldset>
+          <fieldset className="space-y-1">
+            <legend className="mb-1">Physics inspector</legend>
+            {(
+              [
+                [null, "Hidden", ""],
+                ["heading", "Heading up", "level, turning with the animal, so the current swings as it turns"],
+                ["north", "North up", "the compass frame"],
+              ] as const
+            ).map(([value, label, note]) => (
+              <label key={label} className="flex items-start gap-2">
+                <input type="radio" name="inspector-frame" className="mt-0.5" checked={inspector === value} onChange={() => onInspector(value)} />
+                <span>
+                  {label}
+                  {note && <span className="block opacity-80">{note}</span>}
+                </span>
+              </label>
+            ))}
+            <label className="flex items-center gap-2">
+              Arrows
+              <select
+                className="rounded border border-line bg-surface px-1"
+                value={inspectorScale}
+                onChange={(e) => onInspectorScale(Number(e.target.value))}
+              >
+                {INSPECTOR_SCALES.map((s) => (
+                  <option key={s} value={s}>
+                    {s} body {s === 1 ? "length" : "lengths"} per 1 m/s
+                  </option>
+                ))}
+              </select>
             </label>
           </fieldset>
           <fieldset className="space-y-1">

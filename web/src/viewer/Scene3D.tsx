@@ -8,6 +8,8 @@ import { createVantage, type Vantage } from "../vendor/vantagekit/vantagekit-thr
 import { activityColor, LINE_POINTS, segmentMeans } from "./activity";
 import { loadAnimalModel } from "./animal";
 import { currentColor } from "./current";
+import { inspectorSample, type InspectorFrame } from "./inspector";
+import { InspectorView } from "./inspectorView";
 import { angleAt, valueAt } from "./playback";
 import { elevationAt, elevationColor, trackDepthColor, type Dem } from "./dem";
 import type { TrackColor } from "./link";
@@ -35,6 +37,7 @@ interface SceneState {
   trueLen: number; // the animal's true length in scene units
   cursor: number; // where the marker is placed: a sample index, fractional between samples
   others: OtherState[];
+  inspector: InspectorView;
 }
 
 /** Another reconstruction of the same deployment, drawn in one color with a dot where it is at the cursor time. */
@@ -109,6 +112,7 @@ export default function Scene3D({
   linkWrite,
   others,
   solidColor,
+  inspector,
 }: {
   track: Track;
   dem: Dem | null;
@@ -136,6 +140,8 @@ export default function Scene3D({
   others?: OtherTrack[];
   /** Draw this track in one color (CSS) instead of the `colorBy` ramp. */
   solidColor?: string;
+  /** Show the physics inspector inset, in this frame and at this many body lengths per 1 m/s. */
+  inspector?: { frame: InspectorFrame; scale: number } | null;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const state = useRef<SceneState | null>(null);
@@ -152,6 +158,10 @@ export default function Scene3D({
     chaseOn.current = chase;
     followOn.current = follow;
   }, [chase, follow]);
+  const inspectorOn = useRef(inspector);
+  useEffect(() => {
+    inspectorOn.current = inspector;
+  }, [inspector]);
 
   // Build the scene once per track and DEM.
   useEffect(() => {
@@ -387,8 +397,9 @@ export default function Scene3D({
     let chaseAtt: { yaw: number; pitch: number } | null = null; // the attitude the chase camera last turned to
     const st: SceneState = {
       renderer, scene, camera, nav, terrain, terrainZ, line, lineIdx, marker, drop, exag, frame: 0,
-      trueLen: DEFAULT_LENGTH_M * S, cursor, others: otherStates,
+      trueLen: DEFAULT_LENGTH_M * S, cursor, others: otherStates, inspector: new InspectorView(el),
     }; // prettier-ignore
+    let described = ""; // the inspector settings its corner note was last written for
     // Scene units per screen pixel at distance d from the camera.
     const perPixel = (d: number) => (2 * d * Math.tan((camera.fov * D2R) / 2)) / (el.clientHeight || 400);
     state.current = st;
@@ -483,6 +494,16 @@ export default function Scene3D({
       st.marker.scale.setScalar(Math.max(st.trueLen, MARKER_PX * perPixel(camera.position.distanceTo(st.marker.position))));
       for (const o of st.others) o.dot.scale.setScalar((DOT_PX / 2) * perPixel(camera.position.distanceTo(o.dot.position)));
       renderer.render(scene, camera);
+      // The physics inspector, into its corner of the same canvas, at the same fractional playback position.
+      const io = inspectorOn.current;
+      st.inspector.setVisible(!!io);
+      if (io) {
+        const key = `${io.frame}:${io.scale}`;
+        if (key !== described) st.inspector.describe(track, io.frame, io.scale);
+        described = key;
+        st.inspector.update(inspectorSample(track, st.cursor, io.frame), io.scale);
+        st.inspector.render(renderer, el.clientWidth || 600, el.clientHeight || 400);
+      }
     };
     loop();
     return () => {
@@ -492,6 +513,7 @@ export default function Scene3D({
       el.removeEventListener("wheel", onAdjust);
       el.removeEventListener("pointerdown", onAdjust);
       if (viewRef) viewRef.current = null;
+      st.inspector.dispose();
       nav.dispose();
       scene.traverse((o) => {
         const m = o as THREE.Mesh;
@@ -563,6 +585,7 @@ export default function Scene3D({
       const mat = new THREE.MeshLambertMaterial(model.texture ? { map: model.texture } : { color: 0x8aa0b8 });
       st.marker.add(new THREE.Mesh(model.geometry, mat));
       st.trueLen = model.length_m * S;
+      st.inspector.setModel(model);
     });
     return () => {
       alive = false;
@@ -578,7 +601,7 @@ export default function Scene3D({
   return (
     <div
       ref={box}
-      className="h-full min-h-80 w-full overflow-hidden rounded"
+      className="relative h-full min-h-80 w-full overflow-hidden rounded"
       title="Drag to pan, right-drag or two fingers to orbit, wheel to zoom; click, then WASD to move"
     />
   );

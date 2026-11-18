@@ -1,5 +1,6 @@
 /** The track page's state in its URL, beside the camera vantagekit writes (cv, cam, cf), so a view can be shared. */
 
+import type { InspectorFrame } from "./inspector";
 import { DEFAULT_SPEED, SPEED_RANGE } from "./playback";
 
 /** What the page restores from a shared link. Unset fields keep the page defaults. */
@@ -17,6 +18,8 @@ export interface PageLink {
   color?: TrackColor;
   /** Playback speed: seconds of track per second of playback. */
   speed?: number;
+  /** The physics inspector inset: shown in a frame, or off. */
+  phys?: InspectorFrame | "off";
 }
 
 /** The 3D view's track colors: the animal's depth, its ODBA (body acceleration, an activity measure), or the speed
@@ -63,6 +66,8 @@ export function readPageLink(search: string): PageLink {
   if (TRACK_COLORS.includes(color as TrackColor)) out.color = color as TrackColor;
   const speed = Number(p.get("speed"));
   if (p.has("speed") && speed >= SPEED_RANGE[0] && speed <= SPEED_RANGE[1]) out.speed = speed;
+  const phys = p.get("phys");
+  if (phys === "heading" || phys === "north") out.phys = phys;
   return out;
 }
 
@@ -82,4 +87,6 @@ export function writePageLink(params: URLSearchParams, s: Required<PageLink>): v
   else params.delete("color");
   if (s.speed !== DEFAULT_SPEED) params.set("speed", String(s.speed));
   else params.delete("speed");
+  if (s.phys !== "off") params.set("phys", s.phys);
+  else params.delete("phys");
 }

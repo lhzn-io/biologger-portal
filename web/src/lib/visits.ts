@@ -16,6 +16,7 @@ export type VisitAction =
   | "chart_pick"
   | "studio"
   | "fullscreen"
+  | "inspector"
   | "collect_add"
   | "collect_copy_image"
   | "collect_copy_prompt"
