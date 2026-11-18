@@ -11,7 +11,7 @@ import { currentColor } from "./current";
 import { angleAt, valueAt } from "./playback";
 import { elevationAt, elevationColor, trackDepthColor, type Dem } from "./dem";
 import type { TrackColor } from "./link";
-import { EARTH_RADIUS_M, strideIndices, type Track } from "./track";
+import { EARTH_RADIUS_M, indexAt, strideIndices, type Track } from "./track";
 import { holdViewForWheel } from "./wheel";
 
 /** Scene units are 100 m (vantagekit metersPerUnit), as in topobathykit's DEM viewer. */
@@ -34,7 +34,25 @@ interface SceneState {
   frame: number;
   trueLen: number; // the animal's true length in scene units
   cursor: number; // where the marker is placed: a sample index, fractional between samples
+  others: OtherState[];
 }
+
+/** Another reconstruction of the same deployment, drawn in one color with a dot where it is at the cursor time. */
+export interface OtherTrack {
+  key: string;
+  track: Track;
+  color: string;
+}
+
+interface OtherState {
+  track: Track;
+  line: Line2;
+  idx: number[];
+  dot: THREE.Group;
+}
+
+/** The dot marking another track's position at the cursor time (pixels across, without its outline). */
+const DOT_PX = 12;
 
 /** Length (m) assumed for the stand-in marker when no species model is loaded. */
 const DEFAULT_LENGTH_M = 2.5;
@@ -89,6 +107,8 @@ export default function Scene3D({
   species,
   viewRef,
   linkWrite,
+  others,
+  solidColor,
 }: {
   track: Track;
   dem: Dem | null;
@@ -112,9 +132,20 @@ export default function Scene3D({
   viewRef?: RefObject<SceneView | null>;
   /** Adds the page's parameters whenever the camera is written to the URL; with it, the URL keeps the view. */
   linkWrite?: RefObject<((params: URLSearchParams) => void) | null>;
+  /** Other reconstructions of the same deployment (same start fix, so the same north/east frame), for comparing. */
+  others?: OtherTrack[];
+  /** Draw this track in one color (CSS) instead of the `colorBy` ramp. */
+  solidColor?: string;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const state = useRef<SceneState | null>(null);
+  // The scene is rebuilt when the set of other tracks changes, not when the array is recreated.
+  const othersRef = useRef(others);
+  // Declared before the scene's build effect, so the build reads the latest list.
+  useEffect(() => {
+    othersRef.current = others;
+  }, [others]);
+  const othersKey = (others ?? []).map((o) => `${o.key}:${o.color}`).join("|");
   const chaseOn = useRef(chase);
   const followOn = useRef(follow);
   useEffect(() => {
@@ -228,10 +259,31 @@ export default function Scene3D({
     const lineIdx = strideIndices(track.count, LINE_POINTS);
     const lineGeo = new LineGeometry();
     lineGeo.setPositions(linePositions(track, lineIdx, exag));
-    lineGeo.setColors(lineColors(track, lineIdx, colorBy, colorMax));
+    lineGeo.setColors(lineColors(track, lineIdx, colorBy, colorMax, solidColor));
     const lineMat = new LineMaterial({ vertexColors: true, linewidth: 2.5, worldUnits: false });
     const line = new Line2(lineGeo, lineMat);
     scene.add(line);
+
+    // Other reconstructions: thinner, one color each, and a dot at the cursor time.
+    const otherMats: LineMaterial[] = [];
+    const otherStates: OtherState[] = (othersRef.current ?? []).map((o) => {
+      const idx = strideIndices(o.track.count, LINE_POINTS);
+      const geo = new LineGeometry();
+      geo.setPositions(linePositions(o.track, idx, exag));
+      const mat = new LineMaterial({ color: new THREE.Color(o.color).getHex(), linewidth: 1.6, worldUnits: false });
+      otherMats.push(mat);
+      const l = new Line2(geo, mat);
+      scene.add(l);
+      // Drawn over the terrain and lines, with a dark outline, so it shows wherever the track runs.
+      const dot = new THREE.Group();
+      const ring = new THREE.Mesh(new THREE.SphereGeometry(1.35, 16, 12), new THREE.MeshBasicMaterial({ color: 0x0b1220, depthTest: false }));
+      const fill = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: o.color, depthTest: false }));
+      ring.renderOrder = 10;
+      fill.renderOrder = 11;
+      dot.add(ring, fill);
+      scene.add(dot);
+      return { track: o.track, line: l, idx, dot };
+    });
 
     // The animal, built at unit length with the head along -z (north at heading 0) and the back along +y, and
     // scaled every frame (see the loop). Until the species model loads, or without one, an elongated cone with a
@@ -269,6 +321,7 @@ export default function Scene3D({
       link: linkWrite ? { app: { write: (p: URLSearchParams) => linkWrite.current?.(p) } } : false,
     });
     const bounds = new THREE.Box3().setFromObject(line);
+    for (const o of otherStates) bounds.union(new THREE.Box3().setFromObject(o.line));
     nav.fitBox(bounds, { bearingDeg: 20, elevationDeg: 35, factor: 1.1 });
     nav.saveHome();
     // A shared link opens on its camera; Home still returns to the fitted view. The scene is rebuilt when the
@@ -285,6 +338,7 @@ export default function Scene3D({
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       lineMat.resolution.set(w, h);
+      for (const m of otherMats) m.resolution.set(w, h);
     };
     resize();
     const ro = new ResizeObserver(resize);
@@ -333,7 +387,7 @@ export default function Scene3D({
     let chaseAtt: { yaw: number; pitch: number } | null = null; // the attitude the chase camera last turned to
     const st: SceneState = {
       renderer, scene, camera, nav, terrain, terrainZ, line, lineIdx, marker, drop, exag, frame: 0,
-      trueLen: DEFAULT_LENGTH_M * S, cursor,
+      trueLen: DEFAULT_LENGTH_M * S, cursor, others: otherStates,
     }; // prettier-ignore
     // Scene units per screen pixel at distance d from the camera.
     const perPixel = (d: number) => (2 * d * Math.tan((camera.fov * D2R) / 2)) / (el.clientHeight || 400);
@@ -427,6 +481,7 @@ export default function Scene3D({
       // The animal is drawn at its true length when that is at least MARKER_PX on screen, and at MARKER_PX when
       // it would be smaller, so it stays visible from kilometers away.
       st.marker.scale.setScalar(Math.max(st.trueLen, MARKER_PX * perPixel(camera.position.distanceTo(st.marker.position))));
+      for (const o of st.others) o.dot.scale.setScalar((DOT_PX / 2) * perPixel(camera.position.distanceTo(o.dot.position)));
       renderer.render(scene, camera);
     };
     loop();
@@ -450,7 +505,7 @@ export default function Scene3D({
     };
     // Exaggeration and cursor have their own effects below; rebuilding for them would reset the camera.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [track, dem]);
+  }, [track, dem, othersKey]);
 
   // Vertical exaggeration: rescale terrain, track and marker in place, keeping the view anchored.
   useEffect(() => {
@@ -470,6 +525,7 @@ export default function Scene3D({
       st.terrain.geometry.computeBoundingBox();
     }
     (st.line.geometry as LineGeometry).setPositions(linePositions(track, st.lineIdx, exaggeration));
+    for (const o of st.others) (o.line.geometry as LineGeometry).setPositions(linePositions(o.track, o.idx, exaggeration));
     st.nav.rescaleVertical(prev, exaggeration, -median(track.depth) * prev * S);
     placeMarker(st, track, dem, cursor);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -516,8 +572,8 @@ export default function Scene3D({
   // A new color scale recolors the track in place (the camera stays).
   useEffect(() => {
     const st = state.current;
-    if (st) (st.line.geometry as LineGeometry).setColors(lineColors(track, st.lineIdx, colorBy, colorMax));
-  }, [track, colorBy, colorMax]);
+    if (st) (st.line.geometry as LineGeometry).setColors(lineColors(track, st.lineIdx, colorBy, colorMax, solidColor));
+  }, [track, colorBy, colorMax, solidColor]);
 
   return (
     <div
@@ -528,7 +584,11 @@ export default function Scene3D({
   );
 }
 
-function lineColors(track: Track, idx: number[], colorBy: TrackColor, max: number): number[] {
+function lineColors(track: Track, idx: number[], colorBy: TrackColor, max: number, solid?: string): number[] {
+  if (solid) {
+    const c = new THREE.Color(solid);
+    return idx.flatMap(() => [c.r, c.g, c.b]);
+  }
   if (colorBy === "odba" && track.odba) return Array.from(segmentMeans(track.odba, idx)).flatMap((v) => activityColor(v, max));
   if (colorBy === "current" && track.current)
     return Array.from(segmentMeans(track.current.speed, idx)).flatMap((v) => currentColor(v, max));
@@ -564,6 +624,14 @@ function placeMarker(st: SceneState, track: Track, dem: Dem | null, at: number) 
   pos.needsUpdate = true;
   st.drop.computeLineDistances();
   st.drop.visible = !Number.isNaN(floor);
+  // Other tracks' dots, at the same time (the same fractional sample when both share a clock).
+  for (const o of st.others) {
+    const sameClock = o.track.count === track.count && o.track.manifest.t0 === track.manifest.t0;
+    const j = sameClock ? at : indexAt(o.track, track.manifest.t0 + valueAt(track.t, at));
+    const p = [valueAt(o.track.east, j) * S, -valueAt(o.track.depth, j) * st.exag * S, -valueAt(o.track.north, j) * S];
+    o.dot.visible = p.every(Number.isFinite);
+    if (o.dot.visible) o.dot.position.set(p[0]!, p[1]!, p[2]!);
+  }
 }
 
 /** The angle in -pi..pi. */

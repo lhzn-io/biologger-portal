@@ -91,6 +91,15 @@ function Tracks({ data, editor }: { data: DeploymentDetail; editor: boolean }) {
       {data.tracks.length === 0 ? (
         <p className="text-sm text-muted">No track bundles yet.{editor && !isPublished() ? " Run the simulation to make one." : ""}</p>
       ) : (
+        <>
+        {data.tracks.length > 1 && (
+          <p className="mb-2 text-sm">
+            <Link to={`/deployments/${encodeURIComponent(data.id)}/compare`} className="text-accent hover:underline">
+              Compare the {data.tracks.length} tracks
+            </Link>
+            <span className="text-muted"> side by side: with and without the ocean current, dead-reckoned and pinned</span>
+          </p>
+        )}
         <table className="w-full text-sm">
           <thead className="text-left text-muted">
             <tr>
@@ -129,6 +138,7 @@ function Tracks({ data, editor }: { data: DeploymentDetail; editor: boolean }) {
             ))}
           </tbody>
         </table>
+        </>
       )}
       {publish.error && <ErrorNote error={publish.error} />}
     </Panel>

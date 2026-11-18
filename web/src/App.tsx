@@ -17,6 +17,7 @@ import { useVisitLog } from "./lib/visits";
 
 // The viewer pulls in three.js and MapLibre; load it only when a track is opened.
 const TrackPage = lazy(() => import("./routes/TrackPage"));
+const ComparePage = lazy(() => import("./routes/ComparePage"));
 
 const NAV = [
   { to: "/", label: "Overview" },
@@ -64,6 +65,14 @@ export default function App() {
             element={
               <Suspense fallback={<p className="text-sm text-muted">Loading the viewer...</p>}>
                 <TrackPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/deployments/:id/compare"
+            element={
+              <Suspense fallback={<p className="text-sm text-muted">Loading the viewer...</p>}>
+                <ComparePage />
               </Suspense>
             }
           />

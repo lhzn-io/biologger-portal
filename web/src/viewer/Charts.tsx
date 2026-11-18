@@ -561,7 +561,8 @@ function InfoNote({ open, children }: { open: boolean; children: ReactNode }) {
   return open ? <p className="mt-1 max-w-3xl border-l-2 border-line pl-2 text-xs text-muted">{children}</p> : null;
 }
 
-function Chart({
+/** One chart with its caption, Collect button and click-to-scrub (also used by the compare page). */
+export function Chart({
   series,
   onTime,
   collectId,

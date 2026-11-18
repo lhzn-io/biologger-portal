@@ -27,6 +27,16 @@ export interface TrackManifest {
   provenance: { sim_git_commit: string; sim_git_dirty: boolean };
   /** The ordered steps that made the track (biologger-sim core/provenance.py); absent in older bundles. */
   pipeline?: PipelineStep[];
+  /** Numbers the exporter measured on the track ({name, value, unit, by}); absent in older bundles. */
+  metrics?: { name: string; value: number | null; unit: string; by: string }[];
+  /** How to rebuild the track; absent in older bundles. */
+  reproducibility?: {
+    fingerprint: string;
+    complete: boolean;
+    sim_branch: string | null;
+    sim_commit_on_remote: boolean | null;
+    sim_dirty: boolean | null;
+  } | null;
 }
 
 export interface PipelineStep {
