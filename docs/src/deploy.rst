@@ -118,7 +118,8 @@ The published viewer
 --------------------
 
 ``deploy/cloudflare/publish.sh`` writes the snapshot from the catalog, packs the licensed animal models under a
-key made for that build, builds the web app in published mode and deploys it with wrangler. It refuses to deploy
+key made for that build, builds the web app in published mode, copies in the built documentation
+(``deploy/docs.sh``; served at ``/docs``) and deploys it with wrangler. It refuses to deploy
 unless the host already answers with an Access login, so data never goes up unprotected.
 
 - Settings in ``~/.config/biologger-portal/env`` (never committed): ``CLOUDFLARE_ACCOUNT_ID``, and optionally
@@ -129,7 +130,8 @@ unless the host already answers with an Access login, so data never goes up unpr
 The daily run
 -------------
 
-``deploy/daily.sh`` scans the datasets folder in the hub container, then runs ``publish.sh`` only when the
+``deploy/daily.sh`` scans the datasets folder in the hub container, pulls the live viewer's visit log for
+the Visitors page (``pull-visits``, skipped until the Access service token is set), then runs ``publish.sh`` only when the
 snapshot's content or the checked-out commit changed since the last publish (``--force`` publishes regardless).
 ``deploy/launchd/io.lhzn.biologger-portal-daily.plist`` runs it at 04:15 each day, logging to
 ``~/Library/Logs/biologger-portal-daily.log``::
