@@ -5,6 +5,7 @@ import { Badge, ErrorNote, Loading } from "../components/ui";
 import { bytes, duration, TRACK_COLORS } from "../lib/format";
 import { isPublished } from "../lib/mode";
 import { useDeployments, useTracks } from "../lib/queries";
+import { oneTrackPerDeployment } from "../lib/shownTracks";
 import type { TrackRow } from "../lib/types";
 import { loadDemFrom } from "../viewer/dem";
 
@@ -20,12 +21,13 @@ function aspectOf(west: number, south: number, east: number, north: number): num
 const day = (s: number | null) => (s == null ? "--" : new Date(s * 1000).toISOString().slice(0, 10));
 const trackHref = (t: TrackRow) => `/deployments/${encodeURIComponent(t.deployment_id)}/track/${encodeURIComponent(t.run_id)}`;
 
-/** Landing page: every track on one map (left), and the deployments with their tracks (right). */
+/** Landing page: one track per deployment on one map (left), and the deployments with those tracks (right). */
 export default function Overview() {
   const deps = useDeployments();
   const tracks = useTracks();
   const [hover, setHover] = useState<string | null>(null);
-  const list = useMemo(() => tracks.data ?? [], [tracks.data]);
+  // A deployment can have many runs; the overview shows one each (published, else the most recent).
+  const list = useMemo(() => oneTrackPerDeployment(tracks.data ?? []), [tracks.data]);
   const colors = useMemo(() => list.map((_, k) => TRACK_COLORS[k % TRACK_COLORS.length]!), [list]);
   const dem = useQuery({
     queryKey: ["dem", "overview"],
@@ -50,8 +52,7 @@ export default function Overview() {
   const size = rows.reduce((n, d) => n + d.total_bytes, 0);
   const species = new Set(rows.map((d) => d.species).filter(Boolean));
   const trackOf = (id: string) => {
-    const k = list.findIndex((t) => t.deployment_id === id && t.published);
-    const j = k >= 0 ? k : list.findIndex((t) => t.deployment_id === id);
+    const j = list.findIndex((t) => t.deployment_id === id);
     return j >= 0 ? { track: list[j]!, color: colors[j]! } : null;
   };
 
