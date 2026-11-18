@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Long Horizon Observatory
 # Licensed under the Apache License, Version 2.0. See LICENSE file for details.
 
-"""Command line: ``biologger-portal serve | import | scan | validate``."""
+"""Command line: ``biologger-portal serve | import | scan | validate | layout | publish | share``."""
 
 import argparse
 import getpass
@@ -15,6 +15,7 @@ from . import layout, publish
 from .db import Catalog
 from .importers import import_all
 from .jobs import Jobs
+from .routes.tracks import set_shared
 from .settings import get_settings
 from .topobathy import TopobathyProxy
 from .visits import pull_visits
@@ -40,10 +41,16 @@ def main(argv: list[str] | None = None) -> None:
         "file", nargs="?", help="apply: the plan (default .portal/layout-plan.json); revert: a moves record"
     )
     pub = sub.add_parser(
-        "publish", help="Write the published snapshot (reviewed tracks, catalog) as static files"
+        "publish", help="Write the published snapshot (reviewed and shared tracks, catalog) as static files"
     )
     pub.add_argument("--out", help="Output folder (default .portal/publish)")
     sub.add_parser("pull-visits", help="Copy new rows of the live viewer's visit log into the catalog")
+    share = sub.add_parser(
+        "share", help="Share runs on the published viewer beside the reviewed one (or stop, with --off)"
+    )
+    share.add_argument("deployment")
+    share.add_argument("runs", nargs="+", help="Run IDs of that deployment")
+    share.add_argument("--off", action="store_true", help="Stop sharing them")
     args = parser.parse_args(argv)
 
     if args.command == "serve":
@@ -90,6 +97,14 @@ def main(argv: list[str] | None = None) -> None:
                 f"{m['deployments']} deployments, {len(m['tracks'])} tracks, {len(m['files'])} files "
                 f"({size / 1e6:.1f} MB) in {out}; content {m['content_sha256'][:12]}"
             )
+        elif args.command == "share":
+            for run in args.runs:
+                try:
+                    changed = set_shared(catalog, args.deployment, run, not args.off, actor)
+                except LookupError as e:
+                    raise SystemExit(str(e)) from e
+                state = "not shared" if args.off else "shared"
+                print(f"{args.deployment} {run}: {state}{'' if changed else ' (unchanged)'}")
         elif args.command == "pull-visits":
             print(json.dumps(pull_visits(catalog, settings), indent=2))
         elif args.command == "layout":

@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from ..auth import User, require_editor, require_user
-from ..db import loads, utcnow
+from ..db import Catalog, loads, utcnow
 
 router = APIRouter(tags=["tracks"])
 Reader = Annotated[User, Depends(require_user)]
@@ -61,6 +61,39 @@ def publish_track(dep_id: str, body: PublishWrite, request: Request, user: Edito
             (now, user.email, dep_id, old["run_id"] if old else None, body.run_id),
         )
     return {"deployment_id": dep_id, "published": body.run_id}
+
+
+class ShareWrite(BaseModel):
+    shared: bool
+
+
+@router.put("/api/deployments/{dep_id}/tracks/{run_id}/shared")
+def share_track(dep_id: str, run_id: str, body: ShareWrite, request: Request, user: Editor) -> dict[str, Any]:
+    """Shares a run on the published viewer beside the reviewed one (or stops sharing it)."""
+    try:
+        set_shared(request.app.state.catalog, dep_id, run_id, body.shared, user.email)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    return {"deployment_id": dep_id, "run_id": run_id, "shared": body.shared}
+
+
+def set_shared(cat: Catalog, dep_id: str, run_id: str, shared: bool, actor: str) -> bool:
+    """Sets a run's shared flag and audits a change; returns whether it changed. LookupError if no such run."""
+    row = cat.one("SELECT shared FROM track WHERE deployment_id=? AND run_id=?", (dep_id, run_id))
+    if row is None:
+        raise LookupError(f"no track {run_id} for {dep_id}")
+    if bool(row["shared"]) == shared:
+        return False
+    with cat.tx() as conn:
+        conn.execute(
+            "UPDATE track SET shared=? WHERE deployment_id=? AND run_id=?", (int(shared), dep_id, run_id)
+        )
+        conn.execute(
+            """INSERT INTO audit (at_utc, actor, entity, entity_id, field, old_value, new_value)
+               VALUES (?, ?, 'deployment', ?, 'shared_track', ?, ?)""",
+            (utcnow(), actor, dep_id, None if shared else run_id, run_id if shared else None),
+        )
+    return True
 
 
 @router.get("/tracks/{dep_id}/{run_id}/{name}", include_in_schema=False)

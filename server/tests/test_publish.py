@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from conftest import write_track
 from fastapi.testclient import TestClient
 from test_topobathy import FakeTopobathykit, make_client
 
@@ -69,6 +70,38 @@ def test_unreviewed_tracks_are_not_published(settings: Settings, tmp_path: Path)
     client = make_client(settings, FakeTopobathykit())
     m = run_publish(client, settings, tmp_path / "pub")
     assert m["tracks"] == [] and not (tmp_path / "pub/data/v1/tracks/WHOI.900_20250101").exists()
+
+
+def test_shared_runs_are_published_beside_the_reviewed_one(settings: Settings, tmp_path: Path) -> None:
+    root = settings.datasets_root
+    write_track(root / "WHOI.900_20250101" / "tracks" / "run-2", "WHOI.900_20250101", "run-2")
+    write_track(root / "WHOI.900_20250101" / "tracks" / "run-3", "WHOI.900_20250101", "run-3")
+    client = ready_client(settings)
+    r = client.put("/api/deployments/WHOI.900_20250101/tracks/run-2/shared", json={"shared": True})
+    assert r.status_code == 200 and r.json()["shared"] is True
+    assert (
+        client.put("/api/deployments/WHOI.900_20250101/tracks/nope/shared", json={"shared": True}).status_code
+        == 404
+    )
+    audit = client.get("/api/deployments/WHOI.900_20250101").json()["audit"]
+    assert any(a["field"] == "shared_track" and a["new_value"] == "run-2" for a in audit)
+
+    m = run_publish(client, settings, tmp_path / "pub")
+    data = tmp_path / "pub/data/v1"
+    assert {t["run_id"] for t in m["tracks"]} == {"run-1", "run-2"}  # run-3 neither reviewed nor shared
+    listed = {t["run_id"]: t for t in json.loads((data / "tracks.json").read_text())}
+    assert listed["run-1"]["published"] == 1 and listed["run-2"]["published"] == 0
+    assert listed["run-2"]["shared"] == 1
+    detail = json.loads((data / "deployments/WHOI.900_20250101.json").read_text())
+    assert [t["run_id"] for t in detail["tracks"]] == ["run-2", "run-1"] and detail["track_count"] == 2
+    assert (data / "tracks/WHOI.900_20250101/run-2/track.f32").is_file()
+    assert (data / "terrain/WHOI.900_20250101/run-2/terrain.json").is_file()
+    grid = {r["deployment_id"]: r["cells"] for r in json.loads((data / "matrix.json").read_text())["rows"]}
+    assert grid["WHOI.900_20250101"]["track"]["count"] == 2
+
+    client.put("/api/deployments/WHOI.900_20250101/tracks/run-2/shared", json={"shared": False})
+    m = run_publish(client, settings, tmp_path / "pub")
+    assert {t["run_id"] for t in m["tracks"]} == {"run-1"}
 
 
 def test_same_catalog_gives_the_same_content_hash(settings: Settings, tmp_path: Path) -> None:

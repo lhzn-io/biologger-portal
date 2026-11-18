@@ -73,6 +73,8 @@ export interface TrackRow {
   duration_s: number | null;
   bounds: { lat?: [number, number]; lon?: [number, number]; depth_m?: [number, number] };
   published: number;
+  /** Shared on the published viewer beside the reviewed run (the compare page's variants). */
+  shared: number;
   url?: string;
   species?: string;
   common_name?: string;

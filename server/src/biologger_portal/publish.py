@@ -14,9 +14,12 @@ Layout (under the output folder), mirroring the hub's API so the web app reads e
     data/v1/terrain/overview/...                 the landing map's crop
     data/v1/snapshot.json                        publish time, versions, a SHA-256 per file
 
-Only the run marked reviewed is published for each deployment, and only with its terrain already
-cached on the hub (publishing never calls topobathykit). Left out: the change history, people's names,
-the prototype's unverified validation records, unreviewed runs and anything about uploads.
+For each deployment the run marked reviewed is published, with any runs an editor shared beside it
+(the variants the compare page sets side by side), and only with their terrain already cached on the
+hub (publishing never calls topobathykit). The reviewed run keeps ``published: 1`` in the snapshot,
+so the viewer's overview still shows that one per deployment; shared runs carry ``published: 0``.
+Left out: the change history, people's names, the prototype's unverified validation records, runs
+neither reviewed nor shared, and anything about uploads.
 
 Every file except snapshot.json is written deterministically, so an unchanged catalog gives an
 unchanged ``content_sha256`` and the daily run can skip the deploy.
@@ -66,7 +69,8 @@ def _clean(out_dir: Path) -> None:
 def _published_tracks(catalog: Catalog) -> list[dict[str, Any]]:
     return catalog.query(
         """SELECT t.*, d.dem_dataset, d.dem_policy, d.species, d.common_name FROM track t
-           JOIN deployment d ON d.id = t.deployment_id WHERE t.published = 1 ORDER BY t.deployment_id"""
+           JOIN deployment d ON d.id = t.deployment_id WHERE t.published = 1 OR t.shared = 1
+           ORDER BY t.deployment_id, t.run_id DESC"""
     )
 
 
@@ -112,7 +116,7 @@ def _track_out(t: dict[str, Any]) -> dict[str, Any]:
     keys = ("deployment_id", "run_id", "track_model", "sim_git_commit", "sim_git_dirty", "rate_hz", "count",
             "t0", "duration_s", "species", "common_name")  # fmt: skip
     out = {k: t[k] for k in keys if k in t}
-    out.update(id=t["id"], path="", published=1, bounds=loads(t["bounds"]))
+    out.update(id=t["id"], path="", published=t["published"], shared=t["shared"], bounds=loads(t["bounds"]))
     out["url"] = f"/{BASE}/tracks/{t['deployment_id']}/{t['run_id']}/"
     return out
 
@@ -150,17 +154,21 @@ def publish(catalog: Catalog, root: Path, out_dir: Path, proxy: TopobathyProxy, 
         if not t["dem_dataset"]:
             continue  # no topobathykit grid covers the track yet: published without a seafloor
         if bbox is None:
-            missing_terrain.append(f"{t['deployment_id']} (no lat/lon bounds)")
+            missing_terrain.append(f"{t['deployment_id']}/{t['run_id']} (no lat/lon bounds)")
         elif not all(
             proxy.cached(t["dem_dataset"], p, bbox_param(bbox), max_dim) for p in ("meta", "elevation.bin")
         ):
-            missing_terrain.append(f"{t['deployment_id']} (terrain not cached; run a scan on the hub)")
+            missing_terrain.append(
+                f"{t['deployment_id']}/{t['run_id']} (terrain not cached; run a scan on the hub)"
+            )
     if missing_terrain:
-        raise PublishError("reviewed tracks without terrain: " + "; ".join(missing_terrain))
+        raise PublishError("published tracks without terrain: " + "; ".join(missing_terrain))
 
     _clean(out_dir)
     data = out_dir / BASE
-    by_dep = {t["deployment_id"]: t for t in tracks}
+    by_dep: dict[str, list[dict[str, Any]]] = {}
+    for t in tracks:
+        by_dep.setdefault(t["deployment_id"], []).append(t)
 
     # Tracks and their terrain.
     for t in tracks:
@@ -189,7 +197,7 @@ def publish(catalog: Catalog, root: Path, out_dir: Path, proxy: TopobathyProxy, 
     _dump(data / "tracks.json", [_track_out(t) for t in tracks])
 
     area = overview_area(catalog)
-    if area is not None and len(tracks) > 1:
+    if area is not None and len(by_dep) > 1:
         dataset, policy, bbox = area
         if _copy_terrain(proxy, dataset, bbox_param(bbox), max_dim, data / "terrain" / "overview"):
             _dump(
@@ -209,7 +217,7 @@ def publish(catalog: Catalog, root: Path, out_dir: Path, proxy: TopobathyProxy, 
             )
         ]  # fmt: skip
         runs = _latest_runs(catalog, dep)
-        track = [_track_out(by_dep[dep])] if dep in by_dep else []
+        track = [_track_out(t) for t in by_dep.get(dep, [])]
         cols = {k: d[k] for k in ("species", "common_name", "location", "time_start_utc", "time_end_utc",
                                   "start_lat", "start_lon", "end_lat", "end_lon", "dem_dataset")}  # fmt: skip
         summaries.append(
@@ -228,7 +236,7 @@ def publish(catalog: Catalog, root: Path, out_dir: Path, proxy: TopobathyProxy, 
         )  # fmt: skip
     _dump(data / "deployments.json", summaries)
 
-    # The file grid (as the hub computes it; tracks counted as published runs only).
+    # The file grid (as the hub computes it; tracks counted as published runs only, reviewed or shared).
     rows = []
     for s in summaries:
         dep = s["id"]
@@ -242,7 +250,7 @@ def publish(catalog: Catalog, root: Path, out_dir: Path, proxy: TopobathyProxy, 
         cells: dict[str, Any] = {}
         for kind in MATRIX_KINDS:
             if kind == "track" and dep in by_dep:
-                cells[kind] = {"state": "present", "count": 1, "bytes": 0}
+                cells[kind] = {"state": "present", "count": len(by_dep[dep]), "bytes": 0}
             elif kind in present:
                 cells[kind] = {"state": "present", **present[kind]}
             elif kind in PRODUCT_KINDS and drive and drive["drive_link"]:

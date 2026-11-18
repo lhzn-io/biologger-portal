@@ -41,6 +41,9 @@ const km = (m: number | null | undefined, digits = 1) => (m == null || !Number.i
 const pct = (x: number | null | undefined) => (x == null || !Number.isFinite(x) ? "--" : `${(100 * x).toFixed(1)} %`);
 const bearing = (north: number, east: number) => ((Math.atan2(east, north) * 180) / Math.PI + 360) % 360;
 
+/** The sim docs' section on the current-sampling bias of current-corrected tracks (served at /docs/sim/). */
+const KNOWN_LIMIT_DOC = "/docs/sim/tracks.html#known-limit-where-the-current-is-sampled";
+
 /**
  * Every reconstruction of one deployment side by side: the same tag data placed with and without the ocean current,
  * dead-reckoned and pinned to the end fix. One table, one 3D view (the selected track carries the animal, the others
@@ -236,6 +239,21 @@ export default function ComparePage() {
           with or without the ocean current
           {variants.length > recorded && `, beside ${variants.length - recorded} earlier ${variants.length - recorded === 1 ? "export" : "exports"} (hidden until ticked)`}
           . Click a row to put the animal on that track; the others show a dot at the same moment.
+        </p>
+        <p className="mt-1 text-sm text-muted" role="note">
+          Every track here is a reconstruction from the tag's sensors and its release and end fixes, not a recorded
+          path; only the fixes are measured positions.
+          {variants.some((v) => v.info.current) && (
+            <>
+              {" "}
+              The tracks with the ocean current carry a known bias in where the current is sampled, which can overstate
+              the drift (see{" "}
+              <a href={KNOWN_LIMIT_DOC} className="text-accent hover:underline">
+                Known limit: where the current is sampled
+              </a>
+              ).
+            </>
+          )}
         </p>
       </header>
 

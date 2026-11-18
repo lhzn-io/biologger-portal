@@ -83,6 +83,11 @@ function Tracks({ data, editor }: { data: DeploymentDetail; editor: boolean }) {
     mutationFn: (run_id: string) => sendJson(`/api/deployments/${encodeURIComponent(data.id)}/published-track`, "PUT", { run_id }),
     onSuccess: refresh,
   });
+  const share = useMutation({
+    mutationFn: ({ run_id, shared }: { run_id: string; shared: boolean }) =>
+      sendJson(`/api/deployments/${encodeURIComponent(data.id)}/tracks/${encodeURIComponent(run_id)}/shared`, "PUT", { shared }),
+    onSuccess: refresh,
+  });
   return (
     <Panel
       title={`Tracks (${data.tracks.length})`}
@@ -118,6 +123,11 @@ function Tracks({ data, editor }: { data: DeploymentDetail; editor: boolean }) {
                     {t.run_id}
                   </Link>
                   {t.published ? <span className="ml-2"><Badge tone="passed">reviewed</Badge></span> : null}
+                  {!t.published && t.shared && !isPublished() ? (
+                    <span className="ml-2" title="Published on the viewer beside the reviewed run, for comparison">
+                      <Badge tone="remote">on viewer</Badge>
+                    </span>
+                  ) : null}
                 </td>
                 <td className="pr-4">{t.track_model}</td>
                 <td className="pr-4">
@@ -129,9 +139,16 @@ function Tracks({ data, editor }: { data: DeploymentDetail; editor: boolean }) {
                 </td>
                 <td className="text-right">
                   {editor && !t.published && (
-                    <Button kind="plain" onClick={() => publish.mutate(t.run_id)} disabled={publish.isPending}>
-                      Mark reviewed
-                    </Button>
+                    <span className="flex justify-end gap-2">
+                      <span title={t.shared ? "Stop publishing this run on the viewer" : "Publish this run on the viewer beside the reviewed one, for comparison"}>
+                        <Button kind="plain" onClick={() => share.mutate({ run_id: t.run_id, shared: !t.shared })} disabled={share.isPending}>
+                          {t.shared ? "Unshare" : "Share"}
+                        </Button>
+                      </span>
+                      <Button kind="plain" onClick={() => publish.mutate(t.run_id)} disabled={publish.isPending}>
+                        Mark reviewed
+                      </Button>
+                    </span>
                   )}
                 </td>
               </tr>
@@ -141,6 +158,7 @@ function Tracks({ data, editor }: { data: DeploymentDetail; editor: boolean }) {
         </>
       )}
       {publish.error && <ErrorNote error={publish.error} />}
+      {share.error && <ErrorNote error={share.error} />}
     </Panel>
   );
 }
