@@ -18,7 +18,8 @@ from .routes import agent, catalog, health, runner, sheets, sim, topobathy, trac
 from .settings import Settings, get_settings
 from .topobathy import TopobathyProxy
 
-API_PREFIXES = ("api/", "tracks/", "topobathy/")
+API_PREFIXES = ("api/", "tracks/", "topobathy/", "models/")
+MODEL_SUFFIXES = (".blgm", ".json")
 
 
 def create_app(
@@ -58,11 +59,27 @@ def create_app(
     app.include_router(sim.router)
     app.include_router(runner.router)
     app.include_router(agent.router)
+    _mount_models(app, settings.packed_models_dir)
 
     dist = settings.web_dist
     if dist is not None and (dist / "index.html").is_file():
         _mount_web(app, dist)
     return app
+
+
+def _mount_models(app: FastAPI, packed: Path | None) -> None:
+    """Serve the packed animal models (models.json and *.blgm, encrypted under the build's key) at /models."""
+
+    @app.get("/models/{name}", include_in_schema=False)
+    def model(name: str) -> FileResponse:
+        if packed is None:
+            raise HTTPException(status_code=404)
+        root = packed.resolve()
+        candidate = (root / name).resolve()
+        if candidate.parent != root or candidate.suffix not in MODEL_SUFFIXES or not candidate.is_file():
+            raise HTTPException(status_code=404)
+        # Each hub build packs them under a new key, so a browser revalidates instead of keeping an old copy.
+        return FileResponse(candidate, headers={"Cache-Control": "no-cache"})
 
 
 def _mount_web(app: FastAPI, dist: Path) -> None:

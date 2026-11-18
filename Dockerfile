@@ -12,6 +12,9 @@ COPY web/package.json web/package-lock.json ./
 RUN npm ci
 COPY web/ ./
 COPY configs/ /src/configs/
+# The animal models' key, compiled into the viewer: deploy/hub.sh makes one per build and packs the models under
+# it. Empty (a plain docker build) draws a plain marker instead of the species model.
+ARG VITE_MODEL_KEY=""
 RUN npm run build
 
 # Stage 2: the server's environment. git fetches the pinned biologger-sim tag; it stays out of the final image.

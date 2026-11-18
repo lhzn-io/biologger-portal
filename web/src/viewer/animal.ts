@@ -1,8 +1,9 @@
 /**
  * Animal models for the 3D view. They come from paid packs whose license allows them only built into the
  * product, so the publish step packs them into this viewer's own encrypted format (deploy/models/pack-models.mjs)
- * under a key compiled into the build. Without the key, the packed files, or WebCrypto (which needs https or
- * localhost), the view falls back to a plain marker.
+ * under a key compiled into the build. Without the key or the packed files, the view falls back to a plain marker.
+ * Decryption uses WebCrypto where the page has it (https or localhost); on plain http, such as the hub read over
+ * the VPN, a JavaScript AES-GCM (@noble/ciphers) is loaded instead, only then.
  */
 import * as THREE from "three";
 
@@ -56,13 +57,38 @@ function dequantize(q: Int16Array | Uint16Array, comps: number, lo: number[], hi
   return out;
 }
 
+/**
+ * AES-GCM decryption (the tag appended to the data, as WebCrypto writes it): WebCrypto when the page has it,
+ * otherwise @noble/ciphers, loaded on demand. `subtle` null takes the fallback; exported for tests.
+ */
+export async function decryptAesGcm(
+  key: Uint8Array<ArrayBuffer>,
+  iv: Uint8Array<ArrayBuffer>,
+  data: Uint8Array<ArrayBuffer>,
+  subtle: SubtleCrypto | null = globalThis.crypto?.subtle ?? null,
+): Promise<ArrayBuffer> {
+  if (subtle) {
+    const k = await subtle.importKey("raw", key, "AES-GCM", false, ["decrypt"]);
+    return subtle.decrypt({ name: "AES-GCM", iv }, k, data);
+  }
+  const { gcm } = await import("@noble/ciphers/aes.js");
+  const plain = gcm(key, iv).decrypt(data);
+  return plain.buffer.slice(plain.byteOffset, plain.byteOffset + plain.byteLength) as ArrayBuffer;
+}
+
 /** Decrypt and unpack one .blgm file. Exported for tests. */
-export async function unpackModel(file: ArrayBuffer, keyHex: string): Promise<AnimalModel> {
+export async function unpackModel(
+  file: ArrayBuffer,
+  keyHex: string,
+  subtle: SubtleCrypto | null = globalThis.crypto?.subtle ?? null,
+): Promise<AnimalModel> {
   const bytes = new Uint8Array(file);
   if (String.fromCharCode(...bytes.subarray(0, 4)) !== "BLGM") throw new Error("not a packed model");
   if (bytes[4] !== FORMAT_VERSION) throw new Error(`packed model version ${bytes[4]} is not supported`);
-  const key = await crypto.subtle.importKey("raw", hexBytes(keyHex), "AES-GCM", false, ["decrypt"]);
-  const body = new DataView(await crypto.subtle.decrypt({ name: "AES-GCM", iv: bytes.slice(8, 20) }, key, bytes.slice(20)));
+  const sealed = bytes.slice(20);
+  const body = new DataView(
+    await decryptAesGcm(hexBytes(keyHex), bytes.slice(8, 20), sealed, subtle),
+  );
   const headLen = body.getUint32(0, true);
   const h = JSON.parse(new TextDecoder().decode(new Uint8Array(body.buffer, 4, headLen)).replace(/\0+$/, "")) as Header;
   const base = 4 + headLen;
@@ -92,7 +118,7 @@ export async function unpackModel(file: ArrayBuffer, keyHex: string): Promise<An
 /** The model for a species (scientific name), or null when there is none or it cannot be loaded here. */
 export function loadAnimalModel(species: string | undefined): Promise<AnimalModel | null> {
   const key = KEY_HEX;
-  if (!species || !key || typeof crypto === "undefined" || !crypto.subtle) return Promise.resolve(null);
+  if (!species || !key) return Promise.resolve(null);
   manifest ??= fetch("/models/models.json")
     .then((r) => (r.ok ? (r.json() as Promise<Manifest>) : null))
     .catch(() => null);

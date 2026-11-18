@@ -16,8 +16,12 @@ The hub
 
 1. Settings: copy ``deploy/portal.env.example`` to ``~/.config/biologger-portal/portal.env`` (outside the
    repo, ``chmod 600``) and fill it in. It holds the Access service token that reads the visit log.
-2. Container (OrbStack): ``docker compose -f deploy/compose.yaml up -d --build``. Check
-   ``curl -s http://garnet.internal:8797/api/health``. The container restarts with OrbStack.
+2. Container (OrbStack): ``deploy/hub.sh``. Check ``curl -s http://garnet.internal:8797/api/health``. The
+   container restarts with OrbStack. The script packs the licensed animal models
+   (``~/Projects/whoi-mpg/models/cgtrader``, or ``PORTAL_MODELS_DIR``) under a key made for the build, as the
+   publish step does, into ``~/.cache/biologger-portal/hub-models``, which the hub serves at ``/models``; then it
+   runs ``docker compose build`` and ``up``. A plain ``docker compose -f deploy/compose.yaml up -d --build``
+   also works, but the 3D view and the physics inspector then draw a plain marker instead of the species model.
 3. Catalog: ``docker exec biologger-portal /app/server/.venv/bin/biologger-portal import`` reads the metadata
    sheets and scans the datasets folder; it also fetches each track's terrain from topobathykit, which takes about
    30 to 60 s per new track. Later, ``... biologger-portal scan`` picks up files copied in with rsync.
@@ -42,7 +46,7 @@ dashboard; nothing on garnet is opened to the internet. One-time setup, in Cloud
 3. In ``portal.env``: ``PORTAL_ACCESS_TEAM_DOMAIN`` (``https://<team>.cloudflareaccess.com``),
    ``PORTAL_ACCESS_AUD`` (the application's audience tag), ``PORTAL_EDITORS``, ``PORTAL_SIGNIN_URL``
    (``https://whoi-mpg-hub.lhzn.io``) and ``PORTAL_AGENTS`` (below). Then
-   ``docker compose -f deploy/compose.yaml up -d --build``.
+   ``deploy/hub.sh portal cloudflared``.
 
 Check: ``curl -m 15 -sI https://whoi-mpg-hub.lhzn.io`` without signing in answers with a redirect to the Access
 login, and ``curl -m 15 http://garnet.internal:8797/api/me`` on the VPN says ``anonymous``.

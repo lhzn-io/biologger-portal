@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { unpackModel } from "./animal";
+import { decryptAesGcm, unpackModel } from "./animal";
 
 const KEY = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
 
@@ -58,6 +58,24 @@ describe("unpackModel", () => {
     expect([p.getX(2), p.getY(2), p.getZ(2)].map((v) => +v.toFixed(4))).toEqual([0, 0.1, 0.5]);
     expect(m.geometry.getAttribute("uv").getX(1)).toBeCloseTo(1);
     expect(Array.from(m.geometry.getIndex()!.array)).toEqual([0, 1, 2]);
+  });
+
+  it("decrypts without WebCrypto, as on the hub read over plain http", async () => {
+    const m = await unpackModel(await packed(), KEY, null);
+    expect(m.name).toBe("test");
+    expect(Array.from(m.geometry.getIndex()!.array)).toEqual([0, 1, 2]);
+    await expect(unpackModel(await packed(1, KEY.replace(/^00/, "ff")), KEY, null)).rejects.toThrow();
+  });
+
+  it("gives the same plaintext on both decryption paths", async () => {
+    const key = new Uint8Array(32).fill(3);
+    const iv = new Uint8Array(12).fill(9);
+    const ck = await crypto.subtle.importKey("raw", key, "AES-GCM", false, ["encrypt"]);
+    const sealed = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, ck, new TextEncoder().encode("swordfish")));
+    const viaSubtle = await decryptAesGcm(key, iv, sealed, crypto.subtle);
+    const viaNoble = await decryptAesGcm(key, iv, sealed, null);
+    expect(new TextDecoder().decode(viaNoble)).toBe("swordfish");
+    expect(new Uint8Array(viaNoble)).toEqual(new Uint8Array(viaSubtle));
   });
 
   it("refuses a wrong key, an unknown version and a file that is not a packed model", async () => {

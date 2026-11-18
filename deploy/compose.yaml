@@ -1,4 +1,6 @@
-# The biologger-portal hub on the fleet host (OrbStack): docker compose -f deploy/compose.yaml up -d --build
+# The biologger-portal hub on the fleet host (OrbStack): deploy/hub.sh, which packs the licensed animal models
+# for the build and then runs docker compose build and up. A plain `docker compose -f deploy/compose.yaml up -d
+# --build` also works, with a plain marker in place of the species models.
 #
 # The hub is read on the lab network and over the WireGuard VPN at http://garnet.internal:8797, anonymous and
 # read-only; simulation runners use it there with tokens of their own. Editors and agent scripts come through the
@@ -9,6 +11,9 @@ services:
   portal:
     build:
       context: ..
+      args:
+        # Set by deploy/hub.sh: the key the packed models in PORTAL_HUB_MODELS are encrypted under.
+        VITE_MODEL_KEY: ${PORTAL_MODEL_KEY:-}
     image: biologger-portal:latest
     container_name: biologger-portal
     restart: unless-stopped
@@ -19,9 +24,12 @@ services:
     environment:
       PORTAL_DATASETS_ROOT: /data
       PORTAL_WEB_DIST: /app/web/dist
+      PORTAL_PACKED_MODELS_DIR: /models
     volumes:
       # The canonical datasets folder: read-write, for uploads, the catalog and caches in .portal/.
       - ${DATASETS_DIR:-/Users/lhzn/Projects/whoi-mpg/datasets}:/data
+      # The animal models deploy/hub.sh packed for this build (encrypted; outside the repository and the image).
+      - ${PORTAL_HUB_MODELS:-${HOME}/.cache/biologger-portal/hub-models}:/models:ro
     extra_hosts:
       # topobathykit runs on the host; containers reach it by this name.
       - "garnet.internal:host-gateway"

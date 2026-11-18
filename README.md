@@ -105,8 +105,11 @@ Both forms run from the fleet host that holds the datasets folder:
 - **Published viewer:** `https://whoi-mpg.lhzn.io`, deployed by `deploy/cloudflare/publish.sh`. The script refuses to deploy unless Cloudflare Access already protects the host. `deploy/daily.sh` scans, pulls the visit log, and republishes when the snapshot or the commit has changed.
 
 ```bash
-docker compose -f deploy/compose.yaml up -d --build
+deploy/hub.sh
 ```
+
+`deploy/hub.sh` packs the licensed animal models for the build, as the publish step does, then builds and starts
+the container. A plain `docker compose -f deploy/compose.yaml up -d --build` draws a plain marker instead.
 
 Simulation runners run beside the hub on garnet (launchd) and on other fleet hosts; their setup is in the same guide.
 

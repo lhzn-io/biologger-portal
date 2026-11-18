@@ -35,3 +35,32 @@ def test_web_does_not_serve_outside_dist(tmp_path: Path) -> None:
     (tmp_path / "secret.txt").write_text("secret")
     client = TestClient(create_app(Settings(datasets_root=tmp_path, web_dist=dist)))
     assert client.get("/../secret.txt").text != "secret"
+
+
+def test_packed_models_are_served_at_models(tmp_path: Path) -> None:
+    packed = tmp_path / "packed"
+    packed.mkdir()
+    (packed / "models.json").write_text('{"version": 1}')
+    (packed / "swordfish.blgm").write_bytes(b"BLGM\x01")
+    (packed / "notes.txt").write_text("not a model")
+    (tmp_path / "secret.json").write_text("secret")
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    (dist / "index.html").write_text("index")
+    client = TestClient(create_app(Settings(datasets_root=tmp_path, web_dist=dist, packed_models_dir=packed)))
+
+    r = client.get("/models/models.json")
+    assert r.json() == {"version": 1}
+    assert r.headers["cache-control"] == "no-cache"
+    assert client.get("/models/swordfish.blgm").content == b"BLGM\x01"
+    assert client.get("/models/notes.txt").status_code == 404
+    assert client.get("/models/missing.blgm").status_code == 404  # not the web app's index.html
+    assert client.get("/models/..%2Fsecret.json").status_code == 404
+
+
+def test_models_are_absent_without_a_packed_folder(tmp_path: Path) -> None:
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    (dist / "index.html").write_text("index")
+    client = TestClient(create_app(Settings(datasets_root=tmp_path, web_dist=dist)))
+    assert client.get("/models/models.json").status_code == 404
