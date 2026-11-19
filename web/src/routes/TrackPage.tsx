@@ -18,6 +18,8 @@ import { advance, DEFAULT_SPEED, parseSpeed, SPEED_STEPS, speedLabel, stepSpeed 
 import { DEFAULT_CHART_PICK, DEFAULT_PLAY_CAMERA, DEFAULT_TRACK_COLOR, PLAY_CAMERAS, readPageLink, writePageLink, type ChartPick, type PlayCamera, type TrackColor } from "../viewer/link";
 import type { InspectorCamera, InspectorFrame } from "../viewer/inspector";
 import InspectorChrome from "../viewer/InspectorChrome";
+import { INSET, insetBox } from "../viewer/inspectorView";
+import StudioStrip from "../viewer/StudioStrip";
 import { indexAt, loadTrack, timeOf } from "../viewer/track";
 
 const PLAY_CAMERA_LABELS: Record<PlayCamera, string> = { free: "Free", chase: "Chase", orbit: "Orbit" };
@@ -390,6 +392,9 @@ export default function TrackPage() {
             />
           )}
           <Credits />
+          {(studio || fullscreen) && (
+            <StudioStrip track={tr} cursor={pos} onCursor={onCursor} right={inspector ? insetBox(inspector).width + INSET.right + 8 : 8} />
+          )}
           {(studio || fullscreen) && (
             <div className="absolute bottom-2 left-2 flex flex-wrap items-center gap-3 rounded border border-line bg-panel/90 px-2 py-1 text-sm">
               {playbar}
