@@ -5,8 +5,8 @@ import { Badge, ErrorNote, Loading } from "../components/ui";
 import { bytes, duration, TRACK_COLORS } from "../lib/format";
 import { isPublished } from "../lib/mode";
 import { useDeployments, useTracks } from "../lib/queries";
+import { trackHref } from "../lib/runLinks";
 import { oneTrackPerDeployment } from "../lib/shownTracks";
-import type { TrackRow } from "../lib/types";
 import { loadDemFrom } from "../viewer/dem";
 
 const OverviewMap = lazy(() => import("../viewer/OverviewMap"));
@@ -19,7 +19,6 @@ function aspectOf(west: number, south: number, east: number, north: number): num
 }
 
 const day = (s: number | null) => (s == null ? "--" : new Date(s * 1000).toISOString().slice(0, 10));
-const trackHref = (t: TrackRow) => `/deployments/${encodeURIComponent(t.deployment_id)}/track/${encodeURIComponent(t.run_id)}`;
 
 /** Landing page: one track per deployment on one map (left), and the deployments with those tracks (right). */
 export default function Overview() {
@@ -29,6 +28,7 @@ export default function Overview() {
   // A deployment can have many runs; the overview shows one each (published, else the most recent).
   const list = useMemo(() => oneTrackPerDeployment(tracks.data ?? []), [tracks.data]);
   const colors = useMemo(() => list.map((_, k) => TRACK_COLORS[k % TRACK_COLORS.length]!), [list]);
+  const hrefs = useMemo(() => list.map((t) => trackHref(tracks.data ?? [], t)), [list, tracks.data]);
   const dem = useQuery({
     queryKey: ["dem", "overview"],
     queryFn: () => loadDemFrom("/api/terrain/overview"),
@@ -53,7 +53,7 @@ export default function Overview() {
   const species = new Set(rows.map((d) => d.species).filter(Boolean));
   const trackOf = (id: string) => {
     const j = list.findIndex((t) => t.deployment_id === id);
-    return j >= 0 ? { track: list[j]!, color: colors[j]! } : null;
+    return j >= 0 ? { track: list[j]!, color: colors[j]!, href: hrefs[j]! } : null;
   };
 
   return (
@@ -70,7 +70,7 @@ export default function Overview() {
           </p>
         ) : (
           <Suspense fallback={<p className="p-4 text-sm text-muted">Loading the map...</p>}>
-            <OverviewMap tracks={list} colors={colors} dem={dem.data ?? null} highlight={hover} onHover={setHover} />
+            <OverviewMap tracks={list} colors={colors} hrefs={hrefs} dem={dem.data ?? null} highlight={hover} onHover={setHover} />
           </Suspense>
         )}
       </div>
@@ -132,7 +132,7 @@ export default function Overview() {
                     <td className="pr-4 whitespace-nowrap">
                       {t ? (
                         <Link
-                          to={trackHref(t.track)}
+                          to={t.href}
                           className="text-accent hover:underline"
                           title={`${t.track.count?.toLocaleString()} samples at ${t.track.rate_hz} Hz, run ${t.track.run_id}`}
                         >

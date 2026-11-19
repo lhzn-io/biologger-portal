@@ -6,6 +6,7 @@ import CollectPanel from "../collect/CollectPanel";
 import { lines } from "../collect/prompt";
 import { chartText } from "../collect/texts";
 import { useDeployment } from "../lib/queries";
+import { trackHref } from "../lib/runLinks";
 import type { TrackRow } from "../lib/types";
 import { Chart, type ChartSeries } from "../viewer/Charts";
 import {
@@ -304,7 +305,7 @@ export default function ComparePage() {
                       {v.info.label}
                       {isPrimary && <span className="ml-2 text-xs text-accent">(animal)</span>}
                       <Link
-                        to={`/deployments/${encodeURIComponent(depId)}/track/${encodeURIComponent(v.row.run_id)}`}
+                        to={trackHref(rows, v.row)}
                         className="ml-2 font-mono text-xs text-muted hover:text-accent hover:underline"
                         onClick={(e) => e.stopPropagation()}
                       >

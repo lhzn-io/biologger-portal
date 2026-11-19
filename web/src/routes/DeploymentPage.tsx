@@ -10,6 +10,7 @@ import { bytes, coord, duration, KIND_LABELS, utc } from "../lib/format";
 import { lacksMagnetometer } from "../lib/magnetometer";
 import { isPublished } from "../lib/mode";
 import { useDeployment, useMe } from "../lib/queries";
+import { trackHref } from "../lib/runLinks";
 import type { DeploymentDetail } from "../lib/types";
 import { QueueRunButton } from "./SimSetup";
 
@@ -127,7 +128,7 @@ function Tracks({ data, editor }: { data: DeploymentDetail; editor: boolean }) {
             {data.tracks.map((t) => (
               <tr key={t.id} className="border-t border-line">
                 <td className="py-1.5 pr-4 font-mono text-xs">
-                  <Link to={`/deployments/${encodeURIComponent(data.id)}/track/${encodeURIComponent(t.run_id)}`} className="text-accent hover:underline">
+                  <Link to={trackHref(data.tracks, t)} className="text-accent hover:underline">
                     {t.run_id}
                   </Link>
                   {t.published ? <span className="ml-2"><Badge tone="passed">reviewed</Badge></span> : null}

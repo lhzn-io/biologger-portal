@@ -22,12 +22,15 @@ function emphasize(m: maplibregl.Map, id: string | null) {
 export default function OverviewMap({
   tracks,
   colors,
+  hrefs,
   dem,
   highlight,
   onHover,
 }: {
   tracks: TrackRow[];
   colors: string[];
+  /** Each track's page (lib/runLinks.ts), in the order of `tracks`. */
+  hrefs: string[];
   dem: Dem | null;
   highlight: string | null;
   onHover: (deploymentId: string | null) => void;
@@ -90,7 +93,7 @@ export default function OverviewMap({
           const f = res.ok ? await res.json() : null;
           if (!f) return null;
           const feature = f.type === "FeatureCollection" ? f.features[0] : f;
-          return { ...feature, properties: { ...feature.properties, deployment_id: t.deployment_id, run_id: t.run_id, color: colors[k] } };
+          return { ...feature, properties: { ...feature.properties, deployment_id: t.deployment_id, href: hrefs[k], color: colors[k] } };
         }),
       );
       const data: FeatureCollection = { type: "FeatureCollection", features: features.filter(Boolean) };
@@ -98,8 +101,8 @@ export default function OverviewMap({
       m.addLayer({ id: "tracks", type: "line", source: "tracks", paint: { "line-color": ["get", "color"], "line-width": 2.5 } });
       emphasize(m, current.current);
       m.on("click", "tracks", (e) => {
-        const p = e.features?.[0]?.properties as { deployment_id: string; run_id: string } | undefined;
-        if (p) navigate(`/deployments/${encodeURIComponent(p.deployment_id)}/track/${encodeURIComponent(p.run_id)}`);
+        const p = e.features?.[0]?.properties as { href?: string } | undefined;
+        if (p?.href) navigate(p.href);
       });
       m.on("mousemove", "tracks", (e) => {
         m.getCanvas().style.cursor = "pointer";
@@ -115,7 +118,7 @@ export default function OverviewMap({
       map.current = null;
       m.remove();
     };
-  }, [tracks, colors, dem, navigate]);
+  }, [tracks, colors, hrefs, dem, navigate]);
 
   return (
     <div className="relative h-full w-full">

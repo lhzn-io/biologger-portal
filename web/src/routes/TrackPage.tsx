@@ -5,6 +5,7 @@ import { Button, ErrorNote, Loading, Panel } from "../components/ui";
 import CollectPanel from "../collect/CollectPanel";
 import { mapText, readoutText } from "../collect/texts";
 import { useTracks } from "../lib/queries";
+import { resolveRun } from "../lib/runLinks";
 import Charts from "../viewer/Charts";
 import { depthScale, loadDem, type DepthScale } from "../viewer/dem";
 import { Credits, Legend } from "../viewer/Legend";
@@ -27,11 +28,15 @@ const PLAY_CAMERA_LABELS: Record<PlayCamera, string> = { free: "Free", chase: "C
 export default function TrackPage() {
   const params = useParams();
   const depId = decodeURIComponent(params.id ?? "");
-  const runId = decodeURIComponent(params.run ?? "");
-  const track = useQuery({ queryKey: ["track", depId, runId], queryFn: () => loadTrack(depId, runId), staleTime: Infinity });
-  // The DEM crop can take up to a minute the first time topobathykit builds it; the track shows meanwhile.
-  const dem = useQuery({ queryKey: ["dem", depId, runId], queryFn: () => loadDem(depId, runId), staleTime: Infinity, retry: 1 });
+  const linked = decodeURIComponent(params.run ?? "");
   const tracks = useTracks();
+  // The link names a run or gives its exact id (lib/runLinks.ts), so it outlives a re-export; the run list says
+  // which run it opens. Without a match the link is tried as an exact id, and fails as before.
+  const resolved = useMemo(() => (tracks.data ? resolveRun(tracks.data, depId, linked) : null), [tracks.data, depId, linked]);
+  const runId = resolved?.row.run_id ?? (tracks.data || tracks.isError ? linked : "");
+  const track = useQuery({ queryKey: ["track", depId, runId], queryFn: () => loadTrack(depId, runId), staleTime: Infinity, enabled: runId !== "" });
+  // The DEM crop can take up to a minute the first time topobathykit builds it; the track shows meanwhile.
+  const dem = useQuery({ queryKey: ["dem", depId, runId], queryFn: () => loadDem(depId, runId), staleTime: Infinity, retry: 1, enabled: runId !== "" });
   // A shared link (see viewer/link.ts) sets the opening state; the camera in it is vantagekit's.
   const [initial] = useState(() => readPageLink(location.search));
   // Null until the viewer moves the cursor: until then it sits at the link's time, or the start. Playback moves it
@@ -182,7 +187,7 @@ export default function TrackPage() {
     };
   }, [studio]);
 
-  if (track.isLoading) return <Loading what="the track" />;
+  if (track.isPending) return <Loading what="the track" />;
   if (track.error || !tr) return <ErrorNote error={track.error} />;
   const r = readoutAt(tr, dem.data ?? null, cursor);
   const key = `track:${depId}:${runId}`;
@@ -277,6 +282,7 @@ export default function TrackPage() {
         <span className="text-sm text-muted">
           {m.track_model_used} track, {m.count.toLocaleString()} samples at {m.rate_hz} Hz, run {m.run_id}
           {m.provenance.sim_git_dirty ? " (exported from a simulator checkout with uncommitted changes)" : ""}
+          {resolved?.replaced && `. The link was to run ${linked}, since replaced by this re-export`}
         </span>
       </header>
 
