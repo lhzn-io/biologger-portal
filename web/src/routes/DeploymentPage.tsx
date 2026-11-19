@@ -7,6 +7,7 @@ import CollectPanel from "../collect/CollectPanel";
 import { deploymentText, filesText } from "../collect/texts";
 import { sendJson } from "../lib/api";
 import { bytes, coord, duration, KIND_LABELS, utc } from "../lib/format";
+import { lacksMagnetometer } from "../lib/magnetometer";
 import { isPublished } from "../lib/mode";
 import { useDeployment, useMe } from "../lib/queries";
 import type { DeploymentDetail } from "../lib/types";
@@ -93,6 +94,13 @@ function Tracks({ data, editor }: { data: DeploymentDetail; editor: boolean }) {
       title={`Tracks (${data.tracks.length})`}
       actions={editor && !isPublished() ? <QueueRunButton body={{ deployment_id: data.id }} label="Run simulation" /> : undefined}
     >
+      {lacksMagnetometer(data) && (
+        <p className="mb-2 text-sm text-muted">
+          No track comparison for this deployment: the tag recorded no magnetometer, so it has no heading.
+          biologger-sim cannot dead-reckon it, with or without the ocean current, and places the track by
+          interpolating between the start and end fixes.
+        </p>
+      )}
       {data.tracks.length === 0 ? (
         <p className="text-sm text-muted">No track bundles yet.{editor && !isPublished() ? " Run the simulation to make one." : ""}</p>
       ) : (
