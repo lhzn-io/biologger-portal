@@ -26,8 +26,10 @@ def get_visits(request: Request, user: Editor, days: int = Query(30, ge=1, le=18
 @router.post("/visits/refresh")
 def refresh_visits(request: Request, user: Editor) -> dict[str, Any]:
     state = request.app.state
-    last = getattr(state, "visits_refreshed_at", 0.0)
-    if time.monotonic() - last < REFRESH_EVERY_S:
+    # None until the first pull: the monotonic clock counts from boot, so a default of 0 would refuse
+    # the first pull in a host's first minute (a fresh CI runner, or the hub right after a reboot).
+    last: float | None = getattr(state, "visits_refreshed_at", None)
+    if last is not None and time.monotonic() - last < REFRESH_EVERY_S:
         raise HTTPException(status_code=429, detail="pulled less than a minute ago")
     state.visits_refreshed_at = time.monotonic()
     try:
