@@ -14,6 +14,7 @@ import { angleAt, valueAt } from "./playback";
 import { elevationAt, elevationColor, trackDepthColor, type Dem } from "./dem";
 import type { TrackColor } from "./link";
 import { EARTH_RADIUS_M, indexAt, strideIndices, type Track } from "./track";
+import { nearestSample } from "./pick";
 import { holdViewForWheel } from "./wheel";
 
 /** Scene units are 100 m (vantagekit metersPerUnit), as in topobathykit's DEM viewer. */
@@ -113,6 +114,7 @@ export default function Scene3D({
   others,
   solidColor,
   inspector,
+  onSeek,
 }: {
   track: Track;
   dem: Dem | null;
@@ -142,6 +144,8 @@ export default function Scene3D({
   solidColor?: string;
   /** Show the physics inspector inset: its frame, body lengths per 1 m/s, and whether gravity is drawn. */
   inspector?: InspectorOptions | null;
+  /** Called with the sample index when the viewer double-clicks on the track. */
+  onSeek?: (at: number) => void;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const state = useRef<SceneState | null>(null);
@@ -162,6 +166,10 @@ export default function Scene3D({
   useEffect(() => {
     inspectorOn.current = inspector;
   }, [inspector]);
+  const onSeekRef = useRef(onSeek);
+  useEffect(() => {
+    onSeekRef.current = onSeek;
+  }, [onSeek]);
 
   // Build the scene once per track and DEM.
   useEffect(() => {
@@ -394,6 +402,23 @@ export default function Scene3D({
     el.addEventListener("wheel", onAdjust, { passive: true });
     el.addEventListener("pointerdown", onAdjust);
 
+    // A double-click on the track moves the time cursor, and the animal, to the sample under the pointer.
+    const onDblClick = (e: MouseEvent) => {
+      const seek = onSeekRef.current;
+      if (!seek || e.target !== renderer.domElement) return;
+      const r = renderer.domElement.getBoundingClientRect();
+      const ex = st.exag;
+      const at = (i: number, out: THREE.Vector3) => {
+        const x = track.east[i]!;
+        const y = track.depth[i]!;
+        const z = track.north[i]!;
+        return Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z) ? out.set(x * S, -y * ex * S, -z * S) : null;
+      };
+      const i = nearestSample(track.count, at, camera, e.clientX - r.left, e.clientY - r.top, r.width, r.height);
+      if (i != null) seek(i);
+    };
+    el.addEventListener("dblclick", onDblClick);
+
     const clock = new THREE.Clock();
     let chaseAtt: { yaw: number; pitch: number } | null = null; // the attitude the chase camera last turned to
     const st: SceneState = {
@@ -513,6 +538,7 @@ export default function Scene3D({
       el.removeEventListener("wheel", onWheel, { capture: true });
       el.removeEventListener("wheel", onAdjust);
       el.removeEventListener("pointerdown", onAdjust);
+      el.removeEventListener("dblclick", onDblClick);
       if (viewRef) viewRef.current = null;
       st.inspector.dispose();
       nav.dispose();
