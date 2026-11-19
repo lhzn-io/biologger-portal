@@ -16,7 +16,7 @@ import { odbaScale } from "../viewer/activity";
 import { currentScale } from "../viewer/current";
 import { advance, DEFAULT_SPEED, parseSpeed, SPEED_STEPS, speedLabel, stepSpeed } from "../viewer/playback";
 import { DEFAULT_CHART_PICK, DEFAULT_PLAY_CAMERA, DEFAULT_TRACK_COLOR, PLAY_CAMERAS, readPageLink, writePageLink, type ChartPick, type PlayCamera, type TrackColor } from "../viewer/link";
-import type { InspectorFrame } from "../viewer/inspector";
+import type { InspectorCamera, InspectorFrame } from "../viewer/inspector";
 import InspectorChrome from "../viewer/InspectorChrome";
 import { indexAt, loadTrack, timeOf } from "../viewer/track";
 
@@ -50,7 +50,29 @@ export default function TrackPage() {
   const [phys, setPhys] = useState<InspectorFrame | null>(initial.phys && initial.phys !== "off" ? initial.phys : null);
   const [physScale, setPhysScale] = useState(1);
   const [physGravity, setPhysGravity] = useState(false);
-  const inspector = useMemo(() => (phys ? { frame: phys, scale: physScale, gravity: physGravity } : null), [phys, physScale, physGravity]);
+  const [physCamera, setPhysCamera] = useState<InspectorCamera>("side");
+  const [physPair, setPhysPair] = useState(false);
+  const [physLarge, setPhysLarge] = useState(false);
+  const [physSlip, setPhysSlip] = useState(false);
+  // The inset moves its own camera too (a drag frees it, a double-click returns to Side); the buttons follow.
+  const onPhysCamera = useCallback((c: InspectorCamera) => setPhysCamera(c), []);
+  const inspector = useMemo(
+    () =>
+      phys
+        ? {
+            // Always drawn locked to the heading: a north-up inset only moved N, and compass directions read on the map.
+            frame: "heading" as const,
+            scale: physScale,
+            gravity: physGravity,
+            camera: physCamera,
+            pair: physPair,
+            large: physLarge,
+            slip: physSlip,
+            onCamera: onPhysCamera,
+          }
+        : null,
+    [phys, physScale, physGravity, physCamera, physPair, physLarge, physSlip, onPhysCamera],
+  );
   const onInspector = useCallback((f: InspectorFrame | null) => {
     logVisit("action", "inspector", { frame: f ?? "off" });
     setPhys(f);
@@ -260,21 +282,24 @@ export default function TrackPage() {
         <dl className="grid grid-cols-2 gap-x-6 gap-y-1 font-mono text-xs md:grid-cols-5">
           <Item label="Time (UTC)" value={r.time_utc} />
           <Item label="Position" value={`${fmt(r.lat, 5)}, ${fmt(r.lon, 5)}`} />
-          <Item label="Depth" value={`${fmt(r.depth_m)} m`} />
-          <Item label="Seafloor (DEM)" value={r.seafloor_depth_m == null ? "--" : `${fmt(r.seafloor_depth_m)} m`} />
-          <Item label="Above seafloor" value={r.above_seafloor_m == null ? "--" : `${fmt(r.above_seafloor_m)} m`} />
-          <Item label={tr.headingSource === "tag" ? "Heading" : "Heading (fix bearing; no magnetometer)"} value={`${fmt(r.heading_deg)} deg`} />
-          <Item label="Pitch" value={`${fmt(r.pitch_deg)} deg`} />
-          <Item label="Roll" value={`${fmt(r.roll_deg)} deg`} />
-          <Item label={`VeDBA (${tr.units.vedba || "m/s^2"})`} value={fmt(r.vedba, 3)} />
-          {r.odba != null && <Item label={`ODBA (${tr.units.odba || tr.units.vedba || "m/s^2"})`} value={fmt(r.odba, 3)} />}
+          {/* One style throughout: whole meters and degrees, m/s to 0.01, m/s^2 to 0.1 (g to 0.01), as the inspector. */}
+          <Item label="Depth" value={`${fmt(r.depth_m, 0)} m`} />
+          <Item label="Seafloor (DEM)" value={r.seafloor_depth_m == null ? "--" : `${fmt(r.seafloor_depth_m, 0)} m`} />
+          <Item label="Above seafloor" value={r.above_seafloor_m == null ? "--" : `${fmt(r.above_seafloor_m, 0)} m`} />
+          <Item label={tr.headingSource === "tag" ? "Heading" : "Heading (fix bearing; no magnetometer)"} value={`${fmt(((r.heading_deg % 360) + 360) % 360, 0)}°`} />
+          <Item label="Pitch" value={`${fmt(r.pitch_deg, 0)}°`} />
+          <Item label="Roll" value={`${fmt(r.roll_deg, 0)}°`} />
+          <Item label={`VeDBA (${accelUnit(tr.units.vedba)})`} value={fmt(r.vedba, accelDigits(tr.units.vedba))} />
+          {r.odba != null && (
+            <Item label={`ODBA (${accelUnit(tr.units.odba || tr.units.vedba)})`} value={fmt(r.odba, accelDigits(tr.units.odba || tr.units.vedba))} />
+          )}
           {r.current != null && (
             <Item
               label="Ocean current (model)"
-              value={Number.isFinite(r.current.speed_m_s) ? `${fmt(r.current.speed_m_s, 2)} m/s toward ${fmt(r.current.toward_deg, 0)} deg` : "no value"}
+              value={Number.isFinite(r.current.speed_m_s) ? `${fmt(r.current.speed_m_s, 2)} m/s toward ${fmt(r.current.toward_deg, 0)}°` : "no value"}
             />
           )}
-          <Item label="From start fix" value={`${fmt(r.north_m / 1000, 2)} km N, ${fmt(r.east_m / 1000, 2)} km E`} />
+          <Item label="From start fix" value={`${fmt(r.north_m, 0)} m N, ${fmt(r.east_m, 0)} m E`} />
         </dl>
         <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
           {playbar}
@@ -341,11 +366,26 @@ export default function TrackPage() {
           />
           {phys && (
             <InspectorChrome
-              frame={phys}
-              onFrame={onInspector}
               gravity={physGravity}
               onGravity={setPhysGravity}
               hasAccel={tr.accel != null}
+              camera={physCamera}
+              onCamera={(c) => {
+                logVisit("action", "inspector", { camera: c });
+                setPhysCamera(c);
+              }}
+              pair={physPair}
+              onPair={(on) => {
+                logVisit("action", "inspector", { pair: on });
+                setPhysPair(on);
+              }}
+              large={physLarge}
+              onLarge={setPhysLarge}
+              slip={physSlip}
+              onSlip={(on) => {
+                logVisit("action", "inspector", { slip: on });
+                setPhysSlip(on);
+              }}
               onClose={() => onInspector(null)}
             />
           )}
@@ -369,6 +409,11 @@ export default function TrackPage() {
     </div>
   );
 }
+
+/** An activity unit as shown: the run's own (g or m/s^2), with a superscript square. */
+const accelUnit = (u: string | undefined) => (u || "m/s^2").replace("^2", "²");
+/** Decimals for an activity value: 0.1 m/s^2, or 0.01 g (about the same step). */
+const accelDigits = (u: string | undefined) => (u === "g" ? 2 : 1);
 
 function Item({ label, value }: { label: string; value: string }) {
   return (

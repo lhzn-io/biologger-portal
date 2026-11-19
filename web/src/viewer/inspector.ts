@@ -18,14 +18,31 @@ import type { Track } from "./track";
 
 const D2R = Math.PI / 180;
 
-/** The drawn frame: heading up and level (the default), or north up. */
+/** What the drawn scene is locked to: the animal's heading (level, turning with it; the default), or north. */
 export type InspectorFrame = "heading" | "north";
 
-/** What the inset shows: its frame, body lengths per 1 m/s, and whether gravity is drawn. */
+/**
+ * Where the inset's camera is: snapped behind the animal (roll reads directly) or to its right (pitch reads
+ * directly; the default), both following its heading; or free, where the viewer has turned it.
+ */
+export type InspectorCamera = "behind" | "side" | "free";
+
+/**
+ * What the inset shows: its lock, body lengths per 1 m/s, whether gravity is drawn, the camera, a second pane at
+ * right angles, double size, and the slip vectors (the body's long axis and the direction of travel, with the
+ * angles between them).
+ */
 export interface InspectorOptions {
   frame: InspectorFrame;
   scale: number;
   gravity: boolean;
+  camera: InspectorCamera;
+  /** A second pane, looking from 90 degrees to the right of the first (from behind, that is from the right). */
+  pair: boolean;
+  large: boolean;
+  slip: boolean;
+  /** Called when the viewer moves the camera from the inset itself: "free" on a drag, "side" on a double-click. */
+  onCamera?: (camera: InspectorCamera) => void;
 }
 
 /** A world vector (east, north, up), in meters or m/s, in the scene's axes. */
@@ -111,6 +128,24 @@ export interface InspectorSample {
   rollDeg: number;
   /** Unit north (level) in the drawn frame, for the inset's north mark. */
   north: THREE.Vector3;
+  /** The level direction the body points along, unit, in the drawn frame: the behind and side cameras follow it. */
+  forward: THREE.Vector3;
+  /** The body's long axis (toward the head), unit, in the drawn frame. */
+  axis: THREE.Vector3;
+  /**
+   * The vertical velocity from the depth record (m/s, straight up or down; up positive); null where the depth is
+   * missing. Dead reckoning's set speed is horizontal only: this is the other, measured, component.
+   */
+  vertical: THREE.Vector3 | null;
+  /**
+   * The direction of travel: over the ground, plus the vertical speed from the depth record (m/s, drawn frame);
+   * null without a through-water speed.
+   */
+  path: THREE.Vector3 | null;
+  /** Angle of attack (deg): positive with the nose above the path, in the body's own axes; NaN without a path. */
+  attackDeg: number;
+  /** Sideslip (deg): positive with the path toward the animal's right, in the body's own axes; NaN without a path. */
+  sideslipDeg: number;
   /**
    * False past VERTICAL_DEG of pitch, where roll turns to noise and the tilt-compensated heading jumps freely (a
    * gimbal singularity, not a flag), or where the tag has no heading: the arrows that depend on it are then shown
@@ -169,6 +204,17 @@ export function inspectorSample(track: Track, at: number, frame: InspectorFrame)
   const headingDefined =
     Math.abs(pitchDeg || 0) <= VERTICAL_DEG && Number.isFinite(track.heading[hi]!) && (!(hf > 0) || Number.isFinite(track.heading[hj]!));
   const placed = angleAt(track.heading, at);
+  const climb = climbRate(track, at);
+  const path = ground && Number.isFinite(climb) ? ground.clone().add(new THREE.Vector3(0, climb, 0)) : null;
+  const axis = new THREE.Vector3(0, 0, -1).applyQuaternion(body);
+  let attackDeg = NaN;
+  let sideslipDeg = NaN;
+  if (path && path.length() > 1e-6) {
+    // The path in the body's own axes: x right, y back (dorsal), -z head.
+    const p = path.clone().applyQuaternion(body.clone().invert());
+    attackDeg = Math.atan2(-p.y, -p.z) / D2R;
+    sideslipDeg = Math.atan2(p.x, -p.z) / D2R;
+  }
   return {
     body,
     water,
@@ -181,13 +227,31 @@ export function inspectorSample(track: Track, at: number, frame: InspectorFrame)
     pitchDeg,
     rollDeg: angleAt(track.roll, at),
     north,
+    forward: toScene(0, 1, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), -level * D2R).applyQuaternion(toFrame),
+    axis,
+    vertical: Number.isFinite(climb) ? new THREE.Vector3(0, climb, 0) : null,
+    path,
+    attackDeg,
+    sideslipDeg,
     headingDefined,
   };
 }
 
-/** A speed as the inset labels it: centimeters per second, whole numbers. */
-export function cmPerS(v: THREE.Vector3 | null): string {
-  return v ? `${Math.round(v.length() * 100)} cm/s` : "--";
+/**
+ * The vertical speed (m/s, up positive) at a playback position, from the depth record: the change between the two
+ * samples around it (the last two at the end). NaN where either depth or time is missing.
+ */
+export function climbRate(track: Track, at: number): number {
+  const [a, j] = splitPosition(at, track.count);
+  const i = j === a ? Math.max(0, j - 1) : a;
+  const dt = track.t[j]! - track.t[i]!;
+  const dz = track.depth[j]! - track.depth[i]!;
+  return dt > 0 && Number.isFinite(dz) ? -dz / dt : NaN;
+}
+
+/** A speed as the inset labels it: m/s to 0.01, the unit of the ring and of the accelerations' m/s^2. */
+export function mPerS(v: THREE.Vector3 | null): string {
+  return v ? `${v.length().toFixed(2)} m/s` : "--";
 }
 
 /** An acceleration as the inset labels it: m/s^2 to one decimal. */

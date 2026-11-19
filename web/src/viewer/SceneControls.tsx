@@ -72,7 +72,7 @@ export default function SceneControls({
   hasCurrent: boolean;
   trackScale: DepthScale;
   species?: string;
-  /** The physics inspector's frame, or null when it is hidden. */
+  /** The physics inspector when shown (always drawn locked to the heading; a link's old "north" also shows it), or null. */
   inspector: InspectorFrame | null;
   onInspector: (frame: InspectorFrame | null) => void;
   /** Body lengths per 1 m/s in the inspector. */
@@ -170,21 +170,10 @@ export default function SceneControls({
           </fieldset>
           <fieldset className="space-y-1">
             <legend className="mb-1">Physics inspector</legend>
-            {(
-              [
-                [null, "Hidden", ""],
-                ["heading", "Heading up", "level, turning with the animal, so the current swings as it turns"],
-                ["north", "North up", "the compass frame"],
-              ] as const
-            ).map(([value, label, note]) => (
-              <label key={label} className="flex items-start gap-2">
-                <input type="radio" name="inspector-frame" className="mt-0.5" checked={inspector === value} onChange={() => onInspector(value)} />
-                <span>
-                  {label}
-                  {note && <span className="block opacity-80">{note}</span>}
-                </span>
-              </label>
-            ))}
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={inspector !== null} onChange={(e) => onInspector(e.target.checked ? "heading" : null)} />
+              Show
+            </label>
             <label className="flex items-center gap-2">
               Arrows
               <select

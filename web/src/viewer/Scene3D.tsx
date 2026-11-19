@@ -365,6 +365,7 @@ export default function Scene3D({
     const ray = new THREE.Raycaster();
     let lastWheel = -Infinity;
     const onWheel = (e: WheelEvent) => {
+      if (e.target !== renderer.domElement) return; // a wheel over the inspector inset zooms the inset only
       const fresh = e.timeStamp - lastWheel > WHEEL_GESTURE_MS;
       lastWheel = e.timeStamp;
       if (!fresh || nav.mode !== "orbit" || nav.pivot !== "free") return;
@@ -498,7 +499,7 @@ export default function Scene3D({
       const io = inspectorOn.current;
       st.inspector.setVisible(!!io);
       if (io) {
-        const key = `${io.frame}:${io.scale}:${io.gravity}`;
+        const key = `${io.frame}:${io.scale}:${io.gravity}:${io.camera}:${io.pair}:${io.large}:${io.slip}`;
         if (key !== described) st.inspector.describe(track, io);
         described = key;
         st.inspector.update(inspectorSample(track, st.cursor, io.frame));

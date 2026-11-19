@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { attitude, attitudeAt, cmPerS, inspectorSample, mPerS2, placementOf, tagToBody, toScene } from "./inspector";
+import { attitude, attitudeAt, climbRate, inspectorSample, mPerS, mPerS2, placementOf, tagToBody, toScene } from "./inspector";
 import { parseTrack, type PipelineStep, type TrackManifest } from "./track";
 
 const BASE = ["t", "north_m", "east_m", "depth_m", "heading_deg", "pitch_deg", "roll_deg", "vedba"];
@@ -105,7 +105,7 @@ describe("inspector vectors", () => {
     near(north.water!, 1, 0, 0);
     near(north.current!, 0, 0, -0.2);
     near(north.ground!, 1, 0, -0.2);
-    expect(cmPerS(north.ground)).toBe("102 cm/s");
+    expect(mPerS(north.ground)).toBe("1.02 m/s");
   });
 
   it("draws heading up: through the water straight ahead, the current turned with the animal", () => {
@@ -143,7 +143,72 @@ describe("inspector vectors", () => {
     const bare = inspectorSample(track({ heading: [0, 0] }), 0, "north");
     expect(bare.water).toBeNull();
     expect(bare.ground).toBeNull();
-    expect(cmPerS(bare.ground)).toBe("--");
+    expect(mPerS(bare.ground)).toBe("--");
+  });
+});
+
+describe("inspector slip", () => {
+  const moving = (n: number, speed: number, east: number, north: number, depth: number[]) => ({
+    current_east_m_s: new Array<number>(n).fill(east),
+    current_north_m_s: new Array<number>(n).fill(north),
+    current_missing: new Array<number>(n).fill(0),
+    speed_m_s: new Array<number>(n).fill(speed),
+    depth,
+  });
+  /** A bundle whose depth column is set (the base fixture's is zero). */
+  function diving(att: { heading: number[]; pitch?: number[]; roll?: number[] }, x: ReturnType<typeof moving>) {
+    const { depth, ...rest } = x;
+    const tr = track(att, rest);
+    tr.depth.set(depth);
+    return tr;
+  }
+
+  it("reads the vertical speed from the depth record, up positive", () => {
+    const tr = diving({ heading: [0, 0, 0] }, moving(3, 1, 0, 0, [10, 11, 13]));
+    expect(climbRate(tr, 0)).toBeCloseTo(-1, 6);
+    expect(climbRate(tr, 1.5)).toBeCloseTo(-2, 6);
+    expect(climbRate(tr, 2)).toBeCloseTo(-2, 6); // the last two samples at the end
+    // The sample carries it as a vertical vector, the same in either frame (a turn about the vertical).
+    for (const frame of ["heading", "north"] as const) {
+      const v = inspectorSample(tr, 0, frame).vertical!;
+      expect([v.x, v.y, v.z].map((c) => +c.toFixed(6))).toEqual([0, -1, 0]);
+    }
+  });
+
+  it("has no attack or sideslip when the body points along the path", () => {
+    // Diving at 45 degrees: 1 m/s ahead and 1 m/s down, nose down 45.
+    const tr = diving({ heading: [90, 90], pitch: [-45, -45] }, moving(2, 1, 0, 0, [0, 1]));
+    const s = inspectorSample(tr, 0, "heading");
+    near(s.axis, 0, -Math.SQRT1_2, -Math.SQRT1_2);
+    near(s.path!, 0, -1, -1);
+    expect(s.attackDeg).toBeCloseTo(0, 4);
+    expect(s.sideslipDeg).toBeCloseTo(0, 4);
+  });
+
+  it("gives a positive attack angle with the nose above the path", () => {
+    const tr = diving({ heading: [0, 0], pitch: [10, 10] }, moving(2, 1, 0, 0, [0, 0])); // level path, nose up 10
+    expect(inspectorSample(tr, 0, "north").attackDeg).toBeCloseTo(10, 4);
+  });
+
+  it("gives a positive sideslip with a current pushing the path to the right", () => {
+    const tr = diving({ heading: [0, 0] }, moving(2, 1, 1, 0, [0, 0])); // heading north, current east 1 m/s
+    const s = inspectorSample(tr, 0, "north");
+    expect(s.sideslipDeg).toBeCloseTo(45, 4);
+    expect(s.attackDeg).toBeCloseTo(0, 4);
+    near(s.forward, 0, 0, -1);
+  });
+
+  it("has no path, attack or sideslip without a through-water speed", () => {
+    const s = inspectorSample(track({ heading: [0, 0] }), 0, "north");
+    expect(s.path).toBeNull();
+    expect(s.attackDeg).toBeNaN();
+    expect(s.sideslipDeg).toBeNaN();
+  });
+
+  it("points the level forward along the heading in the north frame, ahead in the heading frame", () => {
+    const tr = track({ heading: [90, 90], pitch: [30, 30] });
+    near(inspectorSample(tr, 0, "north").forward, 1, 0, 0);
+    near(inspectorSample(tr, 0, "heading").forward, 0, 0, -1);
   });
 });
 

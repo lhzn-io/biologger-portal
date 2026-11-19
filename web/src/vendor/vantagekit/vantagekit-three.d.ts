@@ -19,6 +19,7 @@ export interface VantageOptions {
   maxPolarAngle?: number;
   keys?: boolean | "focus";
   gamepad?: boolean;
+  pad?: "map" | "object";
   link?: boolean | { app?: { read?: (params: URLSearchParams) => void; write?: (params: URLSearchParams) => void } };
 }
 
@@ -28,6 +29,7 @@ export declare class Vantage extends EventTarget {
   readonly pivot: "free" | "fixed";
   setPivot(mode: "free" | "fixed", options?: { emit?: boolean }): void;
   update(dt: number): boolean;
+  setLookAt(eye: THREE.Vector3 | number[], target: THREE.Vector3 | number[], animate?: boolean): Promise<void>;
   fitBox(box: THREE.Box3, options?: { bearingDeg?: number; elevationDeg?: number; factor?: number; animate?: boolean }): unknown;
   saveHome(): void;
   home(animate?: boolean): void;
