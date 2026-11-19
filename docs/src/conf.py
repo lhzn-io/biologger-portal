@@ -23,7 +23,7 @@ def _git_commit() -> str:
             check=True,
         ).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
-        return "rebuild"
+        return "main"
 
 
 # :src:`web/src/viewer/current.ts` links a file in lhzn-io/biologger-portal at the build commit.
