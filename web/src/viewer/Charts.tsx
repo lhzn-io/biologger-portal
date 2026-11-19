@@ -435,13 +435,20 @@ function PostureByDepth({ track, collectId }: { track: Track; collectId: string 
   useCollectItem(collectId, title, text, fig);
   const rows = bins.map((b) => ({ ...b, key: `${b.top}-${b.bottom}:${b.period}` }));
   const xMax = Math.max(90, ...bins.flatMap((b) => [b.left.p75, b.right.p75]).filter(Number.isFinite).map((v) => Math.ceil(v / 30) * 30));
-  const W = 640;
+  const B = 640; // the butterfly's width; the time histogram sits to its right
+  const histW = 130;
+  const W = B + histW;
   const rowH = 13;
   const labelW = 74;
   const H = rows.length * rowH + 26;
-  const mid = labelW + (W - labelW - 8) / 2;
-  const half = (W - labelW - 8) / 2 - 22; // room for the share labels at the ends
+  const mid = labelW + (B - labelW - 8) / 2;
+  const half = (B - labelW - 8) / 2 - 22; // room for the share labels at the ends
   const x = (deg: number, sign: 1 | -1) => mid + sign * (deg / xMax) * half;
+  // Time in each row, as a share of all the time summarized: how much data each row's statistics stand on.
+  const totalMin = rows.reduce((sum, b) => sum + b.minutes, 0);
+  const maxMin = Math.max(1e-9, ...rows.map((b) => b.minutes));
+  const hist0 = B + 6;
+  const histBar = histW - 40; // room for the percent label after the longest bar
   return (
     <figure ref={fig} data-collect-item>
       <figcaption className="mb-1 flex flex-wrap items-center text-xs text-muted">
@@ -462,8 +469,26 @@ function PostureByDepth({ track, collectId }: { track: Track; collectId: string 
       {rows.length === 0 ? (
         <p className="text-xs text-muted">No depth and roll samples to summarize.</p>
       ) : (
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-3xl" role="img" aria-label={title}>
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-4xl" role="img" aria-label={title}>
           <rect x={x(UPRIGHT_DEG, -1)} width={x(UPRIGHT_DEG, 1) - x(UPRIGHT_DEG, -1)} y={0} height={H - 18} fill="currentColor" opacity={0.06} />
+          <line x1={hist0} x2={hist0} y1={0} y2={H - 18} stroke="currentColor" strokeOpacity={0.25} />
+          <text x={hist0} y={H - 6} fontSize={8.5} fill="currentColor" opacity={0.6}>
+            time in band
+          </text>
+          {rows.map((b, row) => {
+            const y = row * rowH + rowH / 2;
+            const len = (b.minutes / maxMin) * histBar;
+            const share = (100 * b.minutes) / Math.max(1e-9, totalMin);
+            return (
+              <g key={`hist:${b.key}`}>
+                <title>{`${b.top}-${b.bottom} m, ${b.period}: ${b.minutes.toFixed(0)} min, ${share.toFixed(1)} % of the time summarized`}</title>
+                <rect x={hist0} y={y - 4} width={Math.max(0.5, len)} height={8} fill={b.period === "day" ? DAY : NIGHT} fillOpacity={0.7} />
+                <text x={hist0 + len + 4} y={y + 3} fontSize={8} fill="currentColor" opacity={0.55}>
+                  {share < 1 ? "<1" : share.toFixed(0)}%
+                </text>
+              </g>
+            );
+          })}
           {Array.from({ length: xMax / 30 + 1 }, (_, k) => k * 30).flatMap((v) =>
             ([-1, 1] as const)
               .filter((s) => v > 0 || s > 0)
@@ -535,7 +560,8 @@ function PostureByDepth({ track, collectId }: { track: Track; collectId: string 
         the share of the band&apos;s time within {UPRIGHT_DEG} degrees of upright (shaded). Per side: dot the median, bar
         the middle half of the rolls past {UPRIGHT_DEG} degrees, the figure the share of the band&apos;s time on that side
         (bars fainter for small shares; rows paler with under 10 minutes). Day is the sun above the horizon at the
-        fish&apos;s position.
+        fish&apos;s position. Right: the time in each row, as a share of all the time summarized, so a row&apos;s
+        statistics can be weighed by how much data they stand on.
       </InfoNote>
     </figure>
   );
