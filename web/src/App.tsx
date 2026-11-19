@@ -149,7 +149,7 @@ function SnapshotStatus() {
   );
 }
 
-export function ServerStatus() {
+function ServerStatus() {
   const { data, isError } = useQuery({ queryKey: ["health"], queryFn: () => getJson<Health>("/api/health") });
   const label = isError ? "server unreachable" : data ? `server ${data.version}` : "connecting";
   const tone = isError ? "text-bad" : data ? "text-ok" : "text-muted";

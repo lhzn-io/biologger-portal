@@ -183,7 +183,6 @@ class _Stream:
     counts: dict[str, int] = field(default_factory=dict)
     minmax: dict[str, list[float]] = field(default_factory=dict)
     violations: dict[str, int] = field(default_factory=dict)
-    mag_samples: list[np.ndarray] = field(default_factory=list)
 
 
 def deep(path: Path, window: tuple[float | None, float | None] = (None, None)) -> Result:

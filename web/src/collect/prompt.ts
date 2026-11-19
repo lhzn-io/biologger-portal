@@ -2,7 +2,7 @@ import template from "../../../configs/prompts/portal_prompt.txt?raw";
 import { itemText, liveIds } from "./registry";
 
 /** Method notes every prompt carries, so an assistant reads the numbers the way the portal computed them. */
-export const METHODS = [
+const METHODS = [
   "- Tracks are reconstructed by biologger-sim from the tag's accelerometer, magnetometer and depth sensor (dead reckoning). " +
     "Positions are observed only at the start and end fixes; in a fix_pinned track the dead-reckoned path is rotated and " +
     "scaled so it ends at the end fix (the heading correction and scale are given when known).",

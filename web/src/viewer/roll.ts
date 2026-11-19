@@ -19,9 +19,9 @@ export const STEP_AMBIGUOUS_DEG = 135;
 /** Beyond this pitch (degrees), roll from the accelerometer is ill-conditioned. */
 export const PITCH_LIMIT_DEG = 65;
 /** Hysteresis on revolution counting (degrees): a turn counts once the total is this far past 360. */
-export const REVOLUTION_HYSTERESIS_DEG = 30;
+const REVOLUTION_HYSTERESIS_DEG = 30;
 
-export interface Revolution {
+interface Revolution {
   /** Sample index at which the turn completed. */
   i: number;
   /** +1 for a turn in the positive roll sense (right side down), -1 for the other way. */
@@ -134,9 +134,4 @@ export function analyzeRoll(track: Track): RollAnalysis {
     }
   }
   return { source, cum, doubt, revolutions, doubtfulSteps, bridgedDeg };
-}
-
-/** Net turns between two sample indices (signed, in revolutions). */
-export function netTurns(a: RollAnalysis, from: number, to: number): number {
-  return (a.cum[to]! - a.cum[from]!) / 360;
 }

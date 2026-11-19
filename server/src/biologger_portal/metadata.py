@@ -217,11 +217,6 @@ def add_alias(catalog: Catalog, alias: str, dep_id: str) -> None:
         )
 
 
-def resolve_alias(catalog: Catalog, name: str) -> str | None:
-    row = catalog.one("SELECT deployment_id FROM deployment_alias WHERE alias = ?", (name.strip().lower(),))
-    return row["deployment_id"] if row else None
-
-
 def _audit(
     conn: Any, actor: str, dep_id: str, field: str, old: str | None, new: str | None, now: str
 ) -> None:

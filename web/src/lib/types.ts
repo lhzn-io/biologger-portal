@@ -18,7 +18,7 @@ export interface DeploymentSummary {
   last_validation: string | null;
 }
 
-export interface CatalogFile {
+interface CatalogFile {
   id: number;
   path: string;
   deployment_id: string | null;
@@ -31,7 +31,7 @@ export interface CatalogFile {
   seen_utc: string;
 }
 
-export interface Check {
+interface Check {
   name: string;
   status: "passed" | "warning" | "failed";
   detail: string;
@@ -80,7 +80,7 @@ export interface TrackRow {
   common_name?: string;
 }
 
-export interface AuditRow {
+interface AuditRow {
   id: number;
   at_utc: string;
   actor: string;

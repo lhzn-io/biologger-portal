@@ -6,7 +6,7 @@
 
 import { resolve } from "../lib/mode";
 
-export interface DemMeta {
+interface DemMeta {
   width: number;
   height: number;
   bounds: [number, number, number, number];
@@ -17,7 +17,7 @@ export interface DemMeta {
   policy_legend?: unknown;
 }
 
-export interface Terrain {
+interface Terrain {
   dataset: string;
   policy: string;
   bbox: [number, number, number, number];

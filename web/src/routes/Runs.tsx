@@ -156,7 +156,7 @@ function JobDetail({ job }: { job: SimJob }) {
   );
 }
 
-export function NewBatch() {
+function NewBatch() {
   const qc = useQueryClient();
   const deployments = useDeployments().data;
   const profiles = useSimProfiles().data ?? [];

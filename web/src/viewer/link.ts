@@ -25,13 +25,13 @@ export interface PageLink {
 /** The 3D view's track colors: the animal's depth, its ODBA (body acceleration, an activity measure), or the speed
  * of the ocean current the track was corrected with. */
 export type TrackColor = "depth" | "odba" | "current";
-export const TRACK_COLORS: TrackColor[] = ["depth", "odba", "current"];
+const TRACK_COLOR_MODES: TrackColor[] = ["depth", "odba", "current"];
 /** Tracks are colored by ODBA unless the viewer picks depth (or the bundle has no ODBA). */
 export const DEFAULT_TRACK_COLOR: TrackColor = "odba";
 
 /** A chart click moves the cursor and: leaves the camera (lock), turns it in place to face the animal (look), or moves it to center the animal (center). */
 export type ChartPick = "lock" | "look" | "center";
-export const CHART_PICKS: ChartPick[] = ["lock", "look", "center"];
+const CHART_PICKS: ChartPick[] = ["lock", "look", "center"];
 export const DEFAULT_CHART_PICK: ChartPick = "lock";
 
 /**
@@ -43,7 +43,7 @@ export const PLAY_CAMERAS: PlayCamera[] = ["free", "chase", "orbit"];
 /** Playback chases the animal unless the viewer picks otherwise. */
 export const DEFAULT_PLAY_CAMERA: PlayCamera = "chase";
 
-export const EXAGGERATION_RANGE: [number, number] = [1, 20];
+const EXAGGERATION_RANGE: [number, number] = [1, 20];
 
 export function readPageLink(search: string): PageLink {
   const p = new URLSearchParams(search);
@@ -63,7 +63,7 @@ export function readPageLink(search: string): PageLink {
   const pick = p.get("pick");
   if (CHART_PICKS.includes(pick as ChartPick)) out.pick = pick as ChartPick;
   const color = p.get("color");
-  if (TRACK_COLORS.includes(color as TrackColor)) out.color = color as TrackColor;
+  if (TRACK_COLOR_MODES.includes(color as TrackColor)) out.color = color as TrackColor;
   const speed = Number(p.get("speed"));
   if (p.has("speed") && speed >= SPEED_RANGE[0] && speed <= SPEED_RANGE[1]) out.speed = speed;
   const phys = p.get("phys");

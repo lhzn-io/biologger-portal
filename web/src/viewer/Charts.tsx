@@ -380,7 +380,7 @@ function currentSeries(track: Track, idx: number[], xs: number[]): ChartSeries |
 }
 
 /** The series the charts draw, from the same arrays the map and 3D view use (and the Collect prompt reads). */
-export function chartSeries(track: Track, dem: Dem | null): ChartSeries[] {
+function chartSeries(track: Track, dem: Dem | null): ChartSeries[] {
   const idx = strideIndices(track.count, CHART_POINTS);
   const xs = idx.map((i) => timeOf(track, i));
   const pick = (a: Float32Array) => idx.map((i) => a[i]!);

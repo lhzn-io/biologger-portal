@@ -101,7 +101,7 @@ export function Legend({
   );
 }
 
-export const ATTRIBUTION = "Topobathymetry: GEBCO 2025, GMRT (CC BY 4.0), NOAA BlueTopo, NCEI BAG; fused by topobathykit";
+const ATTRIBUTION = "Topobathymetry: GEBCO 2025, GMRT (CC BY 4.0), NOAA BlueTopo, NCEI BAG; fused by topobathykit";
 
 /** The data credits behind a small (i), for the map and the 3D view. */
 export function Credits() {

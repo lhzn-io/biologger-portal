@@ -120,7 +120,7 @@ export interface InspectorSample {
 }
 
 /** Past this pitch (deg, either way) the heading is treated as undefined. */
-export const VERTICAL_DEG = 80;
+const VERTICAL_DEG = 80;
 
 const wrap360 = (deg: number) => ((deg % 360) + 360) % 360;
 

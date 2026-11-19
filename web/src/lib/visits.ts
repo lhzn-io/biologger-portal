@@ -26,7 +26,7 @@ export type VisitAction =
 export type VisitDetail = Record<string, string | number | boolean>;
 
 /** A page is logged once the route has been still this long, so the view's own URL parameters are in it. */
-export const PAGE_SETTLE_MS = 2000;
+const PAGE_SETTLE_MS = 2000;
 const REPEAT_MS = 2000;
 let last = { body: "", at: 0 };
 

@@ -47,7 +47,7 @@ export function solarElevation(lat: number, lon: number, unixS: number): number 
 }
 
 /** Depth bands (m) for the roll-by-depth summary: finer near the surface, where behavior changes fastest. */
-export const DEPTH_EDGES = [0, 25, 50, 100, 200, 300, 400, 500, 600, 700, 800, 1000, 1500, 2000];
+const DEPTH_EDGES = [0, 25, 50, 100, 200, 300, 400, 500, 600, 700, 800, 1000, 1500, 2000];
 
 /** Within this many degrees of upright a sample counts to neither side (small wobbles flip sign constantly). */
 export const UPRIGHT_DEG = 20;

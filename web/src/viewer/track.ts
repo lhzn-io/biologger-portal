@@ -48,7 +48,7 @@ export interface PipelineStep {
 }
 
 /** The ocean current the track was corrected with, as the exporter applied it (m/s, at the animal's depth). */
-export interface TrackCurrent {
+interface TrackCurrent {
   east: Float32Array;
   north: Float32Array;
   /** Speed, NaN where `missing` is set (the exporter used still water there). */
@@ -64,7 +64,7 @@ export interface TrackCurrent {
  * The static vector points along gravity and gives the bundle's pitch = atan2(-x, hypot(y, z)) (nose up positive)
  * and roll = atan2(y, z) (right side down positive).
  */
-export interface TrackAccel {
+interface TrackAccel {
   static: [Float32Array, Float32Array, Float32Array];
   dynamic: [Float32Array, Float32Array, Float32Array];
 }
@@ -105,7 +105,7 @@ export interface Track {
 }
 
 /** Bearing in degrees clockwise from north from one point to another (equirectangular, short distances). */
-export function bearingDeg(lat1: number, lon1: number, lat2: number, lon2: number): number {
+function bearingDeg(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const dn = lat2 - lat1;
   const de = (lon2 - lon1) * Math.cos(((lat1 + lat2) / 2) * D2R);
   return ((Math.atan2(de, dn) / D2R) + 360) % 360;
@@ -134,7 +134,7 @@ function readAccel(optional: (...names: string[]) => Float32Array | null, units:
 }
 
 /** m/s^2 per g. */
-export const STANDARD_GRAVITY = 9.80665;
+const STANDARD_GRAVITY = 9.80665;
 
 export function parseTrack(manifest: TrackManifest, buffer: ArrayBuffer): Track {
   const n = manifest.count;

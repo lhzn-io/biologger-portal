@@ -9,7 +9,7 @@ import { indexAt, timeOf, type PipelineStep, type Track } from "./track";
 /** A dive counts as below the seafloor when it is more than this far under the DEM's seafloor (m). */
 export const BELOW_FLOOR_MARGIN_M = 10;
 
-export type Placement = "dead_reckoning" | "fix_pinned" | "fix_interpolation" | string;
+type Placement = "dead_reckoning" | "fix_pinned" | "fix_interpolation" | string;
 
 export interface VariantInfo {
   /** "Dead reckoning, NECOFS current", "Pinned to the end fix, no current", ... */
@@ -28,7 +28,7 @@ const PLACEMENT_LABELS: Record<string, string> = {
   fix_interpolation: "Fix-to-fix line",
 };
 
-export function placementLabel(p: Placement): string {
+function placementLabel(p: Placement): string {
   return PLACEMENT_LABELS[p] ?? p;
 }
 
