@@ -8,6 +8,7 @@ track over fused bathymetry.
 .. toctree::
    :maxdepth: 1
 
+   releases
    deploy
    currents
 

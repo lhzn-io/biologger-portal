@@ -56,7 +56,8 @@ describe("App", () => {
   it("shows the server version and the signed-in user", async () => {
     stubApi();
     renderAt("/");
-    expect(await screen.findByText("server 0.1.0")).toBeTruthy();
+    const version = await screen.findByText("server 0.1.0");
+    expect(version.closest("a")?.getAttribute("href")).toBe("/docs/guide/releases.html#v0-1-0"); // its release notes
     expect(await screen.findByText("tester@example.org (read only)")).toBeTruthy();
   });
 

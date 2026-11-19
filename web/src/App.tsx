@@ -137,21 +137,36 @@ function WhoAmI() {
   );
 }
 
+/** The user guide's release notes, at a version's own section (docs/src/releases.rst labels each one v0.2.0 etc.). */
+function releaseNotesHref(version: string | undefined): string {
+  return version && /^\d+\.\d+\.\d+$/.test(version) ? `/docs/guide/releases.html#v${version.replaceAll(".", "-")}` : "/docs/guide/releases.html";
+}
+
 /** Published viewer: when the snapshot was taken (data/v1/snapshot.json, which /api/health resolves to). */
 function SnapshotStatus() {
   const { data, isError } = useQuery({ queryKey: ["health"], queryFn: () => getJson<SnapshotInfo>("/api/health") });
   if (isError) return <span className="font-mono text-xs text-bad">snapshot unavailable</span>;
   if (!data) return null;
   return (
-    <span className="font-mono text-xs text-muted" title={`content ${data.content_sha256.slice(0, 12)}, portal ${data.portal_version}`}>
+    <a
+      href={releaseNotesHref(data.portal_version)}
+      className="font-mono text-xs text-muted hover:text-ink"
+      title={`portal ${data.portal_version}: release notes (content ${data.content_sha256.slice(0, 12)})`}
+    >
       snapshot {data.published_utc.slice(0, 16).replace("T", " ")} UTC
-    </span>
+    </a>
   );
 }
 
 function ServerStatus() {
   const { data, isError } = useQuery({ queryKey: ["health"], queryFn: () => getJson<Health>("/api/health") });
-  const label = isError ? "server unreachable" : data ? `server ${data.version}` : "connecting";
-  const tone = isError ? "text-bad" : data ? "text-ok" : "text-muted";
-  return <span className={`font-mono text-xs ${tone}`}>{label}</span>;
+  if (data && !isError) {
+    // The version links to what changed in it.
+    return (
+      <a href={releaseNotesHref(data.version)} className="font-mono text-xs text-ok hover:underline" title="Release notes for this version">
+        server {data.version}
+      </a>
+    );
+  }
+  return <span className={`font-mono text-xs ${isError ? "text-bad" : "text-muted"}`}>{isError ? "server unreachable" : "connecting"}</span>;
 }
