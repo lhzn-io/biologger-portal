@@ -7,6 +7,7 @@ import { mapText, readoutText } from "../collect/texts";
 import { useTracks } from "../lib/queries";
 import { resolveRun } from "../lib/runLinks";
 import Charts from "../viewer/Charts";
+import { convergenceNote, currentConvergence } from "../viewer/compare";
 import { depthScale, loadDem, type DepthScale } from "../viewer/dem";
 import { Credits, Legend } from "../viewer/Legend";
 import { fmt, readoutAt } from "../viewer/readout";
@@ -192,6 +193,7 @@ export default function TrackPage() {
   const r = readoutAt(tr, dem.data ?? null, cursor);
   const key = `track:${depId}:${runId}`;
   const m = tr.manifest;
+  const unsettled = convergenceNote(currentConvergence(tr));
   // A new speed applies at once, playing or paused; while playing, Orbit reframes for it.
   const applySpeed = (next: number) => {
     setSpeedText(null);
@@ -284,6 +286,11 @@ export default function TrackPage() {
           {m.provenance.sim_git_dirty ? " (exported from a simulator checkout with uncommitted changes)" : ""}
           {resolved?.replaced && `. The link was to run ${linked}, since replaced by this re-export`}
         </span>
+        {unsettled && (
+          <p className="basis-full text-sm text-warn" role="note">
+            {unsettled}.
+          </p>
+        )}
       </header>
 
       <CollectPanel id={`${key}:readout`} title={`Cursor readout, ${depId}`} text={() => readoutText(tr, dem.data ?? null, cursor)}>

@@ -45,8 +45,43 @@ export function describeVariant(track: Track): VariantInfo {
   }
   const cc = lastStep(m.pipeline, "current_correction");
   const donor = cc && cc.status === "applied" ? (typeof cc.params.donor_used === "string" ? cc.params.donor_used : "") : null;
-  const label = `${placementLabel(placement)}, ${donor == null ? "no current" : `${donorName(donor || null)} current`}`;
+  const unsettled = currentConvergence(track)?.converged === false ? " (not converged)" : "";
+  const label = `${placementLabel(placement)}, ${donor == null ? "no current" : `${donorName(donor || null)} current${unsettled}`}`;
   return { label, placement, current: donor, order: base + (donor == null ? 0 : 1) };
+}
+
+export interface CurrentConvergence {
+  converged: boolean;
+  passes: number;
+  /** The largest move of any sample in the last pass (m). */
+  lastShiftM: number | null;
+  /** The move under which the exporter calls the passes converged (m). */
+  limitM: number | null;
+}
+
+/**
+ * Whether the current correction's sampling passes settled (biologger-sim export-track: each pass samples the
+ * current along the previous pass's track). Null for exports that sampled once or kept no record of it.
+ */
+export function currentConvergence(track: Track): CurrentConvergence | null {
+  const cc = lastStep(track.manifest.pipeline, "current_correction");
+  if (!cc || cc.status !== "applied" || typeof cc.params.converged !== "boolean") return null;
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  const shifts = Array.isArray(cc.params.pass_shift_max_m) ? cc.params.pass_shift_max_m : [];
+  return {
+    converged: cc.params.converged,
+    passes: num(cc.params.passes) ?? shifts.length,
+    lastShiftM: num(shifts.at(-1)),
+    limitM: num(cc.params.convergence_m),
+  };
+}
+
+/** One sentence for a run whose passes did not settle, or "" (the track page header, the compare table's title). */
+export function convergenceNote(c: CurrentConvergence | null): string {
+  if (!c || c.converged) return "";
+  const last = c.lastShiftM == null ? "" : `; the last moved it up to ${Math.round(c.lastShiftM).toLocaleString("en-US")} m`;
+  const limit = c.limitM == null ? "" : ` (settled is under ${Math.round(c.limitM)} m)`;
+  return `The current correction did not converge in ${c.passes} passes${last}${limit}, so this track is provisional`;
 }
 
 /**

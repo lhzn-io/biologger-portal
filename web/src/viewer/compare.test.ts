@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   alignedIndex,
   belowSeafloor,
+  convergenceNote,
+  currentConvergence,
   currentSummary,
   describeVariant,
   metricValue,
@@ -90,5 +92,28 @@ describe("track comparison", () => {
     const b = track(5, { east_m_s: 2 });
     expect(separation(a, b, [0, 2, 4])).toEqual([0, 2, 4]);
     expect(alignedIndex(a, b, 3)).toBe(3);
+  });
+});
+
+describe("current correction convergence", () => {
+  const passes = (converged: boolean, shifts: number[]) =>
+    step("current_correction", "forcingkit", { donor_used: "necofs", passes: shifts.length, pass_shift_max_m: shifts, convergence_m: 50, converged });
+
+  it("reads the passes, the last shift and the limit", () => {
+    const t = track(3, { model: "fix_pinned", pipeline: [passes(false, [59201.2, 391.3, 67.2])] });
+    expect(currentConvergence(t)).toEqual({ converged: false, passes: 3, lastShiftM: 67.2, limitM: 50 });
+    expect(convergenceNote(currentConvergence(t))).toBe(
+      "The current correction did not converge in 3 passes; the last moved it up to 67 m (settled is under 50 m), so this track is provisional",
+    );
+    expect(describeVariant(t).label).toBe("Pinned to the end fix, NECOFS current (not converged)");
+  });
+
+  it("says nothing for a converged run or one without a pass record", () => {
+    const settled = track(3, { pipeline: [passes(true, [900, 12])] });
+    expect(currentConvergence(settled)?.converged).toBe(true);
+    expect(convergenceNote(currentConvergence(settled))).toBe("");
+    expect(describeVariant(settled).label).toBe("Dead reckoning, NECOFS current");
+    expect(currentConvergence(track(3, { pipeline: [CURRENT] }))).toBeNull();
+    expect(currentConvergence(track(3))).toBeNull();
   });
 });

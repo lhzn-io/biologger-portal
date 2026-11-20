@@ -12,6 +12,8 @@ import { Chart, type ChartSeries } from "../viewer/Charts";
 import {
   belowSeafloor,
   BELOW_FLOOR_MARGIN_M,
+  convergenceNote,
+  currentConvergence,
   currentSummary,
   describeVariant,
   metricValue,
@@ -130,6 +132,7 @@ export default function ComparePage() {
           v.row.run_id,
           {
             current: currentSummary(v.track),
+            unsettled: convergenceNote(currentConvergence(v.track)),
             placement: placementSummary(v.track),
             missBefore: metricValue(v.track, "end_fix_miss_before_placement"),
             miss: metricValue(v.track, "end_fix_miss"),
@@ -217,6 +220,7 @@ export default function ComparePage() {
           ["track", v.info.label],
           ["run_id", v.row.run_id],
           ["current", s.current ? `${s.current.donor}, ${pct(s.current.missingShare)} without a value` : v.info.current === undefined ? "unknown" : "none"],
+          ["current_convergence", s.unsettled],
           ["current_drift_at_end_km", s.current?.driftEnd ? `${km(Math.hypot(s.current.driftEnd.north, s.current.driftEnd.east))} toward ${fmt(bearing(s.current.driftEnd.north, s.current.driftEnd.east), 0)} deg` : ""],
           ["end_fix_miss_before_placement_km", km(s.missBefore)],
           ["pinning", s.placement.scale != null ? `x${s.placement.scale.toFixed(3)}, ${fmt(s.placement.rotationDeg, 1)} deg` : ""],
@@ -312,7 +316,7 @@ export default function ComparePage() {
                         {v.row.run_id}
                       </Link>
                     </td>
-                    <td className="pr-4">
+                    <td className="pr-4" title={s.unsettled || undefined}>
                       {s.current ? `${s.current.donor}, ${pct(s.current.missingShare)} no value` : v.info.current === undefined ? "--" : "none"}
                     </td>
                     <td className="pr-4 font-mono text-xs">
