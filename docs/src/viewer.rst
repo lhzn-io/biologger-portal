@@ -96,6 +96,37 @@ the time summarized, so each row's statistics can be weighed by how much data th
 The ocean current chart is described with the other current displays
 (`The current on a track page <currents.html#the-current-on-a-track-page>`_).
 
+Current direction
+-----------------
+
+On a track with the current correction, arrows show where the water flows
+(:src:`web/src/viewer/currentArrows.ts`):
+
+- **Along the track** in the 3D view, as fine vectors: the head sits on the track and the shaft reaches back
+  toward where the water comes from. Length grows linearly with speed up to full length at 0.5 m/s, on every
+  track alike, and never falls below about a third of full length, so weak flow still shows its direction. Each arrow
+  is the vector mean of the applied current over a stretch of track distance. The arrows show at every zoom,
+  spaced along the track so neighbors do not overlap (sparse in a whole-scene view, denser as the view comes
+  closer), and keep about the same size on screen. Where the track doubles back, arrows from different passes can
+  sit close together.
+  Stretches where the model had no value for more than half the samples get no arrow.
+- **On the current chart**, a row of arrows along the top: the hourly mean direction, north up, colored by the
+  hourly mean speed; hover for the values. The chart thins them to fit its width.
+
+Arrow colors come from the standard currents ramp that the lab's other current displays use (cmocean "tempo"
+hues; a fixed log scale from 0.02 to 3.1 m/s, so a color means the same speed on every track and product). The
+ramp has a table for light backgrounds and a twin for dark ones; the arrows take the one that contrasts with what
+is behind them: the dark twin over shallow (pale) seafloor and on a light page, the light table over deep (dark)
+seafloor and on a dark page.
+
+The arrows are on by default on every track with the current correction, and can be turned off under Controls
+("Current arrows"); the setting is kept in the page's link. They are meant to be read against the track's ODBA
+coloring: heading into the arrows at high ODBA is swimming against the current, low ODBA with the track bending
+along them is coasting. Keep in mind that on runs whose through-water speed comes from ODBA (``odba_scaled``),
+ODBA and the corrected track are not independent; the animal's heading against the arrows is the more independent
+comparison. Like the rest of the current, the arrows show the model's current at the animal's depth, not a
+measurement.
+
 Physics inspector
 -----------------
 

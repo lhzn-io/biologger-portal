@@ -1,4 +1,5 @@
 /** The applied ocean current as the 3D view's track color and in the readout: scale, color ramp, direction. */
+import { CURRENTS_FLOOR, CURRENTS_RAMP, CURRENTS_RAMP_DARK, CURRENTS_TOP } from "@lhzn-io/timecharts/currents-ramp";
 import { LINE_POINTS, segmentMeans } from "./activity";
 import { strideIndices, type Track } from "./track";
 
@@ -54,6 +55,30 @@ export function currentColor(v: number, max: number): [number, number, number] {
   const [t0, c0] = RAMP[k]!;
   const [t1, c1] = RAMP[k + 1]!;
   const f = (t - t0) / (t1 - t0);
+  return [c0[0] + (c1[0] - c0[0]) * f, c0[1] + (c1[1] - c0[1]) * f, c0[2] + (c1[2] - c0[2]) * f];
+}
+
+type Rgb = [number, number, number];
+
+const rgbOf = (hex: string): Rgb => [1, 3, 5].map((k) => parseInt(hex.slice(k, k + 2), 16) / 255) as Rgb;
+const RAMPS = {
+  light: CURRENTS_RAMP.map(([v, c]) => [Math.log(v), rgbOf(c)] as const),
+  dark: CURRENTS_RAMP_DARK.map(([v, c]) => [Math.log(v), rgbOf(c)] as const),
+};
+
+/**
+ * The standard currents color (lhzn-io/timecharts' currents ramp, which forcingkit's displays also use): fixed in
+ * speed, interpolated in log(speed), from CURRENTS_FLOOR to CURRENTS_TOP m/s. `light` is the light-basemap table
+ * (pale aqua to deep teal as speed rises), `dark` its dark-basemap twin on the same speeds (lightness rising).
+ */
+export function currentRampColor(v: number, table: "light" | "dark"): Rgb {
+  const rows = RAMPS[table];
+  const x = Math.log(Math.min(CURRENTS_TOP, Math.max(CURRENTS_FLOOR, Number.isFinite(v) ? v : 0)));
+  let k = 0;
+  while (k + 2 < rows.length && rows[k + 1]![0] < x) k++;
+  const [x0, c0] = rows[k]!;
+  const [x1, c1] = rows[k + 1]!;
+  const f = x1 > x0 ? Math.min(1, Math.max(0, (x - x0) / (x1 - x0))) : 0;
   return [c0[0] + (c1[0] - c0[0]) * f, c0[1] + (c1[1] - c0[1]) * f, c0[2] + (c1[2] - c0[2]) * f];
 }
 

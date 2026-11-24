@@ -6,6 +6,7 @@ import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { createVantage, type Vantage } from "../vendor/vantagekit/vantagekit-three.js";
 import { activityColor, LINE_POINTS, segmentMeans } from "./activity";
+import { CurrentArrowLayer } from "./arrowLayer";
 import { loadAnimalModel } from "./animal";
 import { currentColor } from "./current";
 import { inspectorSample, type InspectorOptions } from "./inspector";
@@ -39,6 +40,8 @@ interface SceneState {
   cursor: number; // where the marker is placed: a sample index, fractional between samples
   others: OtherState[];
   inspector: InspectorView;
+  /** The current arrows along the track, when the track has a current correction. */
+  arrows: CurrentArrowLayer | null;
 }
 
 /** Another reconstruction of the same deployment, drawn in one color with a dot where it is at the cursor time. */
@@ -115,6 +118,7 @@ export default function Scene3D({
   solidColor,
   inspector,
   onSeek,
+  currentArrows = false,
 }: {
   track: Track;
   dem: Dem | null;
@@ -146,6 +150,8 @@ export default function Scene3D({
   inspector?: InspectorOptions | null;
   /** Called with the sample index when the viewer double-clicks on the track. */
   onSeek?: (at: number) => void;
+  /** Draw arrows along the track where the water flows (tracks with a current correction only). */
+  currentArrows?: boolean;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const state = useRef<SceneState | null>(null);
@@ -166,6 +172,10 @@ export default function Scene3D({
   useEffect(() => {
     inspectorOn.current = inspector;
   }, [inspector]);
+  const arrowsOn = useRef(currentArrows);
+  useEffect(() => {
+    arrowsOn.current = currentArrows;
+  }, [currentArrows]);
   const onSeekRef = useRef(onSeek);
   useEffect(() => {
     onSeekRef.current = onSeek;
@@ -281,6 +291,10 @@ export default function Scene3D({
     const lineMat = new LineMaterial({ vertexColors: true, linewidth: 2.5, worldUnits: false });
     const line = new Line2(lineGeo, lineMat);
     scene.add(line);
+
+    // Where the water flows along the track: fine vectors, shown when zoomed in close enough (rebuilt each frame).
+    const arrows = track.current ? new CurrentArrowLayer(track, S, dem, lineIdx) : null;
+    if (arrows) scene.add(arrows.group);
 
     // Other reconstructions: thinner, one color each, and a dot at the cursor time.
     const otherMats: LineMaterial[] = [];
@@ -420,10 +434,11 @@ export default function Scene3D({
     el.addEventListener("dblclick", onDblClick);
 
     const clock = new THREE.Clock();
+    const lookAt = new THREE.Vector3(); // the point the camera looks at, for sizing the current arrows
     let chaseAtt: { yaw: number; pitch: number } | null = null; // the attitude the chase camera last turned to
     const st: SceneState = {
       renderer, scene, camera, nav, terrain, terrainZ, line, lineIdx, marker, drop, exag, frame: 0,
-      trueLen: DEFAULT_LENGTH_M * S, cursor, others: otherStates, inspector: new InspectorView(el),
+      trueLen: DEFAULT_LENGTH_M * S, cursor, others: otherStates, inspector: new InspectorView(el), arrows,
     }; // prettier-ignore
     let described = ""; // the inspector settings its corner note was last written for
     // Scene units per screen pixel at distance d from the camera.
@@ -519,6 +534,10 @@ export default function Scene3D({
       // it would be smaller, so it stays visible from kilometers away.
       st.marker.scale.setScalar(Math.max(st.trueLen, MARKER_PX * perPixel(camera.position.distanceTo(st.marker.position))));
       for (const o of st.others) o.dot.scale.setScalar((DOT_PX / 2) * perPixel(camera.position.distanceTo(o.dot.position)));
+      if (st.arrows) {
+        st.arrows.visible = !!arrowsOn.current;
+        if (arrowsOn.current) st.arrows.update(st.exag, perPixel(camera.position.distanceTo(nav.controls.getTarget(lookAt))));
+      }
       renderer.render(scene, camera);
       // The physics inspector, into its corner of the same canvas, at the same fractional playback position.
       const io = inspectorOn.current;

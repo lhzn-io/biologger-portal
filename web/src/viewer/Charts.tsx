@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { markAsOf, niceStep, renderLines, type Area, type Line, type Span } from "@lhzn-io/timecharts/chart";
+import { markAsOf, niceStep, renderLines, type Area, type Glyph, type Line, type Span } from "@lhzn-io/timecharts/chart";
 import { timeTrack } from "@lhzn-io/timecharts/time-axis";
 import "@lhzn-io/timecharts/tokens.css";
 import "@lhzn-io/timecharts/charts.css";
@@ -8,7 +8,8 @@ import { CollectButton, useCollectItem } from "../collect/collect";
 import { GuideLink } from "../components/GuideLink";
 import { lines } from "../collect/prompt";
 import { chartText } from "../collect/texts";
-import { donorName } from "./current";
+import { currentRampColor, donorName } from "./current";
+import { timeArrows } from "./currentArrows";
 import { elevationAt, type Dem } from "./dem";
 import { postureByDepth, quantile, UPRIGHT_DEG, wrap180, type SideStats } from "./posture";
 import { analyzeRoll, PITCH_LIMIT_DEG, STEP_AMBIGUOUS_DEG } from "./roll";
@@ -39,6 +40,8 @@ export interface ChartSeries {
   doc?: string;
   /** Facts for the Collect prompt beyond the line statistics. */
   notes?: [string, string][];
+  /** Arrows in a row along the chart's top (the current's direction, north up). */
+  glyphs?: Glyph[];
 }
 
 /** Roll direction colors: positive roll (right side down) and negative. */
@@ -320,6 +323,12 @@ const CURRENT_NORTH = "#60a5fa";
  * (the exporter's values at those times). Stretches where the model had no value, so the exporter used still water,
  * are shaded and drawn as gaps.
  */
+/** The page follows the system's light theme unless it is set to dark (see index.css). */
+function pageIsLight(): boolean {
+  if (typeof document === "undefined" || typeof matchMedia === "undefined") return false;
+  return document.documentElement.dataset.theme !== "dark" && matchMedia("(prefers-color-scheme: light)").matches;
+}
+
 function currentSeries(track: Track, idx: number[], xs: number[]): ChartSeries | null {
   const c = track.current;
   if (!c) return null;
@@ -345,6 +354,16 @@ function currentSeries(track: Track, idx: number[], xs: number[]): ChartSeries |
   const missingShare = c.missing.reduce((s, v) => s + (v ? 1 : 0), 0) / Math.max(1, n);
   const model = donorName(c.donor);
   const ms = (v: number) => `${v.toFixed(2)} m/s`;
+  // Where the water flows, hour by hour, in the standard currents colors (the chart thins them to fit its width):
+  // the table whose weak end contrasts with the page, the dark twin on a light page and the light table on a dark one.
+  const table = pageIsLight() ? "dark" : "light";
+  const hex = (rgb: [number, number, number]) => `#${rgb.map((v) => Math.round(v * 255).toString(16).padStart(2, "0")).join("")}`;
+  const glyphs: Glyph[] = timeArrows(track).map((a) => ({
+    x: timeOf(track, a.i),
+    deg: a.toward,
+    color: hex(currentRampColor(a.speed, table)),
+    title: `${ms(a.speed)} toward ${a.toward.toFixed(0)} deg (hourly mean)`,
+  }));
   return {
     id: "current",
     title: "Ocean current at the animal (m/s)",
@@ -356,6 +375,7 @@ function currentSeries(track: Track, idx: number[], xs: number[]): ChartSeries |
       { ys: at(c.north), color: CURRENT_NORTH, label: "Northward", width: 1, fmt: ms },
     ],
     spans,
+    glyphs,
     zero: true,
     minPad: 0.02,
     summary: speeds.length
@@ -363,6 +383,7 @@ function currentSeries(track: Track, idx: number[], xs: number[]): ChartSeries |
       : `${model}: no values`,
     caption:
       `The ${model} model current the track was corrected with, at the animal's depth; a model, not a measurement. ` +
+      `Arrows: where the water flows, hourly, north up. ` +
       `Shaded: no model value (${(100 * missingShare).toFixed(1)} % of the record), still water used.`,
     doc: "currents.html#the-current-on-a-track-page",
     notes: [
@@ -620,6 +641,7 @@ export function Chart({
       minPad: series.minPad,
       zero: series.zero,
       floor: series.floor,
+      glyphs: series.glyphs,
     };
     let rendered = renderLines(el, opts);
     const ro = new ResizeObserver(() => {

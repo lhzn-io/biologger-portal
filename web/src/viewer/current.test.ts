@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { currentColor, currentScale, donorName, towardDeg } from "./current";
+import { CURRENTS_RAMP, CURRENTS_RAMP_DARK } from "@lhzn-io/timecharts/currents-ramp";
+import { currentColor, currentRampColor, currentScale, donorName, towardDeg } from "./current";
 import { readPageLink } from "./link";
 import { readoutAt } from "./readout";
 import { parseTrack, type TrackManifest } from "./track";
@@ -87,5 +88,24 @@ describe("applied ocean current", () => {
   it("keeps the current color in a shared link", () => {
     expect(readPageLink("color=current")).toEqual({ color: "current" });
     expect(readPageLink("color=wind")).toEqual({});
+  });
+});
+
+describe("standard currents ramp", () => {
+  const hex = (rgb: [number, number, number]) => `#${rgb.map((v) => Math.round(v * 255).toString(16).padStart(2, "0")).join("")}`;
+  it("matches the shared table at its rows and clamps outside it", () => {
+    expect(hex(currentRampColor(0.494, "light"))).toBe("#9adbd5");
+    expect(hex(currentRampColor(0.494, "dark"))).toBe("#03696c");
+    expect(hex(currentRampColor(0.001, "light"))).toBe(CURRENTS_RAMP[0]![1]);
+    expect(hex(currentRampColor(NaN, "dark"))).toBe(CURRENTS_RAMP_DARK[0]![1]);
+    expect(hex(currentRampColor(9, "light"))).toBe(CURRENTS_RAMP[CURRENTS_RAMP.length - 1]![1]);
+  });
+  it("darkens with speed on the light table and lightens on the dark twin", () => {
+    const lum = ([r, g, b]: [number, number, number]) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    const speeds = [0.03, 0.1, 0.3, 1, 3];
+    const light = speeds.map((v) => lum(currentRampColor(v, "light")));
+    const dark = speeds.map((v) => lum(currentRampColor(v, "dark")));
+    light.slice(1).forEach((l, k) => expect(l).toBeLessThan(light[k]!));
+    dark.slice(1).forEach((l, k) => expect(l).toBeGreaterThan(dark[k]!));
   });
 });

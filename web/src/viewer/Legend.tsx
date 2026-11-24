@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { activityColor, type ActivityScale } from "./activity";
-import { currentColor, donorName, type CurrentScale } from "./current";
+import { currentColor, currentRampColor, donorName, type CurrentScale } from "./current";
+import { LENGTH_FULL_M_S } from "./currentArrows";
 import { elevationColor, trackDepthColor, type DepthScale } from "./dem";
 
 type Rgb = [number, number, number];
@@ -51,19 +52,56 @@ function ColorBar({
   );
 }
 
+const ARROW_KEY_MIN = 0.02;
+const ARROW_KEY_MAX = 3.1;
+const ARROW_TICKS = [0.02, 0.1, 0.5, 3.1];
+
+/** The current arrows' key: the standard currents ramp on its log speed scale, both tables (by seafloor). */
+function ArrowKey({ donor }: { donor: string | null }) {
+  const at = (f: number) => ARROW_KEY_MIN * (ARROW_KEY_MAX / ARROW_KEY_MIN) ** f;
+  const bar = (table: "light" | "dark") =>
+    `linear-gradient(to right, ${Array.from({ length: 13 }, (_, k) => `${css(currentRampColor(at(k / 12), table))} ${((k / 12) * 100).toFixed(1)}%`).join(", ")})`;
+  const pos = (v: number) => (Math.log(v / ARROW_KEY_MIN) / Math.log(ARROW_KEY_MAX / ARROW_KEY_MIN)) * 100;
+  return (
+    <div>
+      <p className="mb-0.5">Current arrows (m/s)</p>
+      <p className="-mt-0.5 mb-0.5 opacity-80">
+        {donorName(donor)} model; head on the track, tail upstream; full length at {LENGTH_FULL_M_S}
+      </p>
+      <div className="h-1 rounded-t-sm" title="over shallow seafloor" style={{ background: bar("dark") }} />
+      <div className="h-1 rounded-b-sm" title="over deep seafloor" style={{ background: bar("light") }} />
+      <div className="relative h-3 font-mono">
+        {ARROW_TICKS.map((t, k) => (
+          <span
+            key={t}
+            className="absolute"
+            style={{ left: `${pos(t)}%`, transform: `translateX(${k === 0 ? 0 : k === ARROW_TICKS.length - 1 ? -100 : -50}%)` }}
+          >
+            {t}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /**
  * Color keys for the terrain and the track: by depth (`depth`, meters below the surface; `species` names whose
- * tracks a species scale spans), by ODBA (`activity`) or by the applied current's speed (`current`).
+ * tracks a species scale spans), by ODBA (`activity`) or by the applied current's speed (`current`); and for the
+ * current arrows (`arrows`, the current's scale when they are drawn).
  */
 export function Legend({
   depth,
   activity,
   current,
+  arrows,
   species,
 }: {
   depth?: DepthScale | null;
   activity?: ActivityScale | null;
   current?: CurrentScale | null;
+  /** The current arrows are drawn (the current's scale, for the model's name). */
+  arrows?: CurrentScale | null;
   species?: string;
 }) {
   return (
@@ -97,6 +135,7 @@ export function Legend({
           ticks={current.ticks}
         />
       )}
+      {arrows && <ArrowKey donor={arrows.donor} />}
     </div>
   );
 }

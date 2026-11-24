@@ -17,6 +17,7 @@ export type VisitAction =
   | "studio"
   | "fullscreen"
   | "inspector"
+  | "current_arrows"
   | "collect_add"
   | "collect_copy_image"
   | "collect_copy_prompt"

@@ -54,6 +54,8 @@ export default function TrackPage() {
   const [playCam, setPlayCam] = useState<PlayCamera>(initial.play ?? DEFAULT_PLAY_CAMERA);
   const [pick, setPick] = useState<ChartPick>(initial.pick ?? DEFAULT_CHART_PICK);
   const [trackColor, setTrackColor] = useState<TrackColor>(initial.color ?? DEFAULT_TRACK_COLOR);
+  // Null is the default: arrows on wherever the track has a current (they read against any track coloring).
+  const [arrowsSet, setArrows] = useState<boolean | null>(initial.arrows ?? null);
   const [basis, setBasis] = useState<DepthScale["basis"]>(initial.basis ?? "species");
   // The physics inspector inset: hidden unless the viewer or a shared link opens it.
   const [phys, setPhys] = useState<InspectorFrame | null>(initial.phys && initial.phys !== "off" ? initial.phys : null);
@@ -110,11 +112,11 @@ export default function TrackPage() {
   const linkWrite = useRef<((p: URLSearchParams) => void) | null>(null);
   useEffect(() => {
     if (!tr) return;
-    const state = { time: timeOf(tr, cursor), exaggeration: exag, basis, follow, play: playCam, pick, color: trackColor, speed, phys: phys ?? ("off" as const) };
+    const state = { time: timeOf(tr, cursor), exaggeration: exag, basis, follow, play: playCam, pick, color: trackColor, speed, phys: phys ?? ("off" as const), arrows: arrowsSet };
     linkWrite.current = (p) => writePageLink(p, state);
     const id = setTimeout(() => view.current?.writeLink(), 400);
     return () => clearTimeout(id);
-  }, [tr, cursor, exag, basis, follow, playCam, pick, trackColor, speed, phys]);
+  }, [tr, cursor, exag, basis, follow, playCam, pick, trackColor, speed, phys, arrowsSet]);
   // While the track plays, Chase and Orbit hold the view on the animal: Chase from behind, turning with it, Orbit
   // at the angle the viewer sets with the mouse. Pausing leaves the camera where it is, back under the viewer's own
   // Follow setting.
@@ -149,6 +151,7 @@ export default function TrackPage() {
   const byCurrent = trackColor === "current" && flow != null;
   const colorBy: TrackColor = byOdba ? "odba" : byCurrent ? "current" : "depth";
   const colorMax = byOdba ? activity.max : byCurrent ? flow.max : scale.max;
+  const arrows = flow != null && (arrowsSet ?? true);
   useEffect(() => {
     if (!tr || !playing) return;
     let last = performance.now();
@@ -331,8 +334,8 @@ export default function TrackPage() {
 
       <CollectPanel id={`${key}:scene`} title={`3D view, ${depId}`} text={() => mapText(tr, dem.data ?? null, exag, scale, species, byOdba ? activity : null, byCurrent ? flow : null)}>
         <div ref={sceneBox} className={studio ? "fixed inset-0 z-[100] bg-[#0b1220]" : "relative h-[36rem] bg-[#0b1220]"}>
-          <Scene3D track={tr} dem={dem.data ?? null} cursor={pos} exaggeration={exag} colorBy={colorBy} colorMax={colorMax} follow={following} chase={chasing} species={species} viewRef={view} linkWrite={linkWrite} inspector={inspector} onSeek={onCursor} />
-          <Legend depth={colorBy === "depth" ? scale : null} activity={byOdba ? activity : null} current={byCurrent ? flow : null} species={species} />
+          <Scene3D track={tr} dem={dem.data ?? null} cursor={pos} exaggeration={exag} colorBy={colorBy} colorMax={colorMax} follow={following} chase={chasing} species={species} viewRef={view} linkWrite={linkWrite} inspector={inspector} onSeek={onCursor} currentArrows={arrows} />
+          <Legend depth={colorBy === "depth" ? scale : null} activity={byOdba ? activity : null} current={byCurrent ? flow : null} arrows={arrows ? flow : null} species={species} />
           <SceneControls
             onFocus={() => view.current?.focusAnimal()}
             studio={studio}
@@ -372,6 +375,11 @@ export default function TrackPage() {
             }}
             hasOdba={activity != null}
             hasCurrent={flow != null}
+            arrows={arrows}
+            onArrows={(on) => {
+              logVisit("action", "current_arrows", { on });
+              setArrows(on);
+            }}
             speciesScale={scales.ofSpecies}
             trackScale={scales.track}
             species={species}

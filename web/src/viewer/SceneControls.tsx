@@ -44,6 +44,8 @@ export default function SceneControls({
   onInspector,
   inspectorScale,
   onInspectorScale,
+  arrows,
+  onArrows,
 }: {
   onFocus: () => void;
   /** The view fills the browser window. */
@@ -78,6 +80,9 @@ export default function SceneControls({
   /** Body lengths per 1 m/s in the inspector. */
   inspectorScale: number;
   onInspectorScale: (scale: number) => void;
+  /** Current arrows along the track are shown. */
+  arrows: boolean;
+  onArrows: (on: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -165,6 +170,13 @@ export default function SceneControls({
                 <span className="block opacity-80">
                   {hasCurrent ? "the model current the track was corrected with, averaged along the line" : "no current correction in this track"}
                 </span>
+              </span>
+            </label>
+            <label className={`flex items-start gap-2 ${hasCurrent ? "" : "opacity-50"}`}>
+              <input type="checkbox" className="mt-0.5" disabled={!hasCurrent} checked={arrows && hasCurrent} onChange={(e) => onArrows(e.target.checked)} />
+              <span>
+                Current arrows
+                <span className="block opacity-80">{hasCurrent ? "where the water flows; longer is faster" : "no current correction in this track"}</span>
               </span>
             </label>
           </fieldset>
