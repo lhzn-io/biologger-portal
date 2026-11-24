@@ -8,6 +8,33 @@ viewer, the top right shows the snapshot time instead; hover over it to see the 
 each release is tagged in the repository
 (`releases on GitHub <https://github.com/lhzn-io/biologger-portal/releases>`_).
 
+.. _v0.4.0:
+
+0.4.0 (unreleased)
+------------------
+
+Ocean current
+^^^^^^^^^^^^^
+
+- **Current arrows along the track**, on by default with the ODBA coloring. Each arrow is the mean current
+  over a stretch of track, its head on the track and its tail upstream. Its color follows the standard currents
+  ramp, and its length is fixed against speed (full length at 0.5 m/s), so arrows compare across tracks.
+  Their spacing follows the zoom, so they show at every distance. The current chart adds a row of hourly
+  arrows along its top. See :doc:`viewer` ("Current direction").
+- **Vertical current.** Tracks exported with the model's vertical velocity (NECOFS) add a chart, "Vertical
+  ocean current at the animal (cm/s, up positive)", and a line in the readouts. It is shown, not applied: the
+  depth comes from the pressure sensor. Along RED001 it is about 0.1 cm/s at the median, against about 7 cm/s
+  horizontally. See :doc:`currents`.
+- The data credits (i) on the 3D views now credit the ocean model shown (NECOFS/UMASSD for NECOFS), as well as
+  the terrain.
+
+Track page
+^^^^^^^^^^
+
+- **Hover readout.** Resting the pointer on the track in the 3D view shows that sample's values; on a current
+  arrow, the stretch it averages and its mean current. On by default; turn it off under Controls. See
+  :doc:`viewer` ("Hover readout").
+
 .. _v0.3.0:
 
 0.3.0 (2026-11-24)
