@@ -8,6 +8,30 @@ viewer, the top right shows the snapshot time instead; hover over it to see the 
 each release is tagged in the repository
 (`releases on GitHub <https://github.com/lhzn-io/biologger-portal/releases>`_).
 
+.. _v0.3.0:
+
+0.3.0 (2026-11-24)
+------------------
+
+Tracks
+^^^^^^
+
+- **Links survive re-exports.** A link to a track names the run, and a re-export of that run keeps the link
+  working: it opens the published run of that name, else a shared one, else the newest. A link to a run that a
+  re-export replaced opens the new run and says which one it replaced.
+- **Current correction that did not converge is marked.** The track page says so, with the pass count and the
+  last pass's shift, and the compare page adds "(not converged)" to the track's label and its copied table text.
+  No shared track is in that state today.
+
+Pages and guide
+^^^^^^^^^^^^^^^
+
+- **Shorter page text.** Each page keeps a line or two and links to this guide for the rest; every chart's (i)
+  note links to its section.
+- **New guide pages**: :doc:`viewer` (track pages, charts, the physics inspector) and :doc:`hub` (the editor
+  pages). The currents page describes how the current is sampled in passes along the placed track.
+- The physics inspector's (i) panel is shorter and assumes no particular track method.
+
 .. _v0.2.0:
 
 0.2.0 (2026-11-19)
