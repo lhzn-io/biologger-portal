@@ -315,6 +315,7 @@ function postureSeries(track: Track, idx: number[], xs: number[]): ChartSeries {
 }
 
 const CURRENT_SPEED = "#22c55e";
+const CURRENT_UP = "#2dd4bf";
 const CURRENT_EAST = "#f59e0b";
 const CURRENT_NORTH = "#60a5fa";
 
@@ -409,6 +410,7 @@ function chartSeries(track: Track, dem: Dem | null): ChartSeries[] {
     ? [{ id: "odba", title: `ODBA (${track.units.odba || unit})`, unit: "", xs, lines: [{ ys: pick(track.odba), color: "#a78bfa", label: "ODBA" }] }]
     : [];
   const current = currentSeries(track, idx, xs);
+  const vertical = verticalCurrentSeries(track, idx, xs);
   return [
     { id: "depth", title: "Depth (m, below the surface)", unit: "m", xs, lines: depthLines },
     { id: "vedba", title: `VeDBA (${unit})`, unit: "", xs, lines: [{ ys: pick(track.vedba), color: "#3b9cff", label: "VeDBA" }] },
@@ -417,7 +419,39 @@ function chartSeries(track: Track, dem: Dem | null): ChartSeries[] {
     postureSeries(track, idx, xs),
     rollSeries(track, idx, xs),
     ...(current ? [current] : []),
+    ...(vertical ? [vertical] : []),
   ];
+}
+
+/**
+ * The model's vertical current at the animal, in cm/s on its own chart: on the current chart's m/s scale it would sit
+ * on the zero line. Shown, not applied to the track (the depth is measured). Gaps where the model had no value.
+ */
+function verticalCurrentSeries(track: Track, idx: number[], xs: number[]): ChartSeries | null {
+  const up = track.current?.up;
+  if (!up || !up.some(Number.isFinite)) return null;
+  const model = donorName(track.current!.donor);
+  const cms = (v: number) => `${v.toFixed(2)} cm/s`;
+  const mags = Array.from(up, (v) => Math.abs(v) * 100).filter(Number.isFinite).sort((a, b) => a - b);
+  return {
+    id: "current_up",
+    title: "Vertical ocean current at the animal (cm/s, up positive)",
+    unit: "cm/s",
+    xs,
+    lines: [{ ys: idx.map((i) => up[i]! * 100), color: CURRENT_UP, label: "Upward", fmt: cms }],
+    zero: true,
+    minPad: 0.05,
+    summary: `${model}: median size ${cms(quantile(mags, 0.5))}, 95th percentile ${cms(quantile(mags, 0.95))}`,
+    caption:
+      `The ${model} model's vertical velocity at the animal's depth, up positive; a model, not a measurement. ` +
+      `Not applied to the track: the depth is measured. For scale, 1 cm/s is 36 m an hour.`,
+    doc: "currents.html#the-current-on-a-track-page",
+    notes: [
+      ["ocean_model", model],
+      ["variable", "the model's upward velocity in z (NECOFS FVCOM ww), at the animal's depth"],
+      ["applied", "no; the track's depth comes from the pressure sensor"],
+    ],
+  };
 }
 
 const DAY = "#fbbf24";

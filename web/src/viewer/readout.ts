@@ -18,8 +18,9 @@ export interface Readout {
   vedba: number;
   odba: number | null;
   /** The applied current: speed (m/s) and the direction it flows toward (deg); null without a correction, and
-   * NaN speed where the model had no value. */
-  current: { speed_m_s: number; toward_deg: number } | null;
+   * NaN speed where the model had no value. `up_m_s` is the model's upward current (shown, not applied): null when
+   * the track has none, NaN where the model had no value. */
+  current: { speed_m_s: number; toward_deg: number; up_m_s: number | null } | null;
 }
 
 /** The values at one sample: what the page shows beside the cursor and what the prompt carries. */
@@ -48,6 +49,7 @@ export function readoutAt(track: Track, dem: Dem | null, i: number): Readout {
       ? {
           speed_m_s: track.current.speed[i]!,
           toward_deg: Number.isFinite(track.current.speed[i]!) ? towardDeg(track.current.east[i]!, track.current.north[i]!) : NaN,
+          up_m_s: track.current.up ? track.current.up[i]! : null,
         }
       : null,
   };

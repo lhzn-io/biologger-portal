@@ -11,6 +11,7 @@ import Charts from "../viewer/Charts";
 import { convergenceNote, currentConvergence } from "../viewer/compare";
 import { depthScale, loadDem, type DepthScale } from "../viewer/dem";
 import { Credits, Legend } from "../viewer/Legend";
+import { upText } from "../viewer/current";
 import { accelDigits, accelUnit, fmt, readoutAt } from "../viewer/readout";
 import Scene3D, { type SceneView } from "../viewer/Scene3D";
 import SceneControls from "../viewer/SceneControls";
@@ -319,6 +320,9 @@ export default function TrackPage() {
               label="Ocean current (model)"
               value={Number.isFinite(r.current.speed_m_s) ? `${fmt(r.current.speed_m_s, 2)} m/s toward ${fmt(r.current.toward_deg, 0)}°` : "no value"}
             />
+          )}
+          {r.current?.up_m_s != null && (
+            <Item label="Vertical current (model)" value={Number.isFinite(r.current.up_m_s) ? upText(r.current.up_m_s) : "no value"} />
           )}
           <Item label="From start fix" value={`${fmt(r.north_m, 0)} m N, ${fmt(r.east_m, 0)} m E`} />
         </dl>

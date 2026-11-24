@@ -57,6 +57,9 @@ interface TrackCurrent {
   missing: Float32Array;
   /** The ocean model forcingkit used ("necofs", "hycom"), from the current_correction step. */
   donor: string | null;
+  /** The model's upward current (m/s), shown but not applied (NaN where the model has none); null when the
+   * model gives no vertical current (HYCOM) or the bundle predates the column. */
+  up: Float32Array | null;
 }
 
 /**
@@ -173,7 +176,14 @@ export function parseTrack(manifest: TrackManifest, buffer: ArrayBuffer): Track 
     for (let i = 0; i < n; i++) speed[i] = missing[i] ? NaN : Math.hypot(cEast[i]!, cNorth[i]!);
     const cc = manifest.pipeline?.filter((s) => s.step === "current_correction").at(-1);
     const donor = cc?.params.donor_used;
-    current = { east: cEast, north: cNorth, speed, missing, donor: typeof donor === "string" ? donor : null };
+    current = {
+      east: cEast,
+      north: cNorth,
+      speed,
+      missing,
+      donor: typeof donor === "string" ? donor : null,
+      up: optional("current_up_m_s"),
+    };
   }
   return {
     manifest,

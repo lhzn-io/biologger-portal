@@ -55,8 +55,16 @@ When a track was exported with the current correction, its track page adds:
   (``currentScale`` and ``currentColor`` in :src:`web/src/viewer/current.ts`)
 - The readout at the playhead, "Ocean current (model)", gives the speed of the current and the
   direction in which it flows.
+- **Vertical ocean current at the animal (cm/s, up positive)**, a chart after the current chart,
+  and "Vertical current (model)" in the readout and the 3D view's hover readout, when the model
+  gives one (NECOFS does, HYCOM does not). It is the model's upward velocity at the animal's
+  depth, in cm/s because it is far smaller than the horizontal current: along RED001 about
+  0.1 cm/s at the median, against about 7 cm/s horizontally; over the shelf break the model
+  reaches a few cm/s. It is shown, not applied: the track's depth comes from the pressure
+  sensor. The current arrows stay horizontal. (``verticalCurrentSeries`` in
+  :src:`web/src/viewer/Charts.tsx`)
 
-All three show the model current at the model's resolution, not a measurement. A track without
+All of these show the model current at the model's resolution, not a measurement. A track without
 the correction shows none of them, and its controls say so.
 
 Comparing reconstructions

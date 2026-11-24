@@ -36,6 +36,7 @@ function track(n: number) {
     current_east_m_s: () => 0.1,
     current_north_m_s: () => 0,
     current_missing: (i) => (i < 30 ? 1 : 0),
+    current_up_m_s: (i) => (i < 30 ? NaN : -0.0012),
   };
   const names = [...BASE, ...Object.keys(cols)];
   const data = new Float32Array(names.length * n);
@@ -65,7 +66,10 @@ describe("hover text", () => {
     expect(lines[1]).toBe("depth 42 m");
     expect(lines[2]).toBe("heading 0 deg, pitch 0 deg");
     expect(lines).toContain("current 0.10 m/s toward 90 deg (model)");
-    expect(sampleLines(tr, null, 10)).toContain("current: no model value here");
+    expect(lines).toContain("vertical current 0.12 cm/s down (model)");
+    const none = sampleLines(tr, null, 10);
+    expect(none).toContain("current: no model value here");
+    expect(none.some((l) => l.startsWith("vertical"))).toBe(false);
   });
 
   it("describes an arrow's stretch: span, mean and missing share", () => {

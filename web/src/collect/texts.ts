@@ -109,6 +109,9 @@ export function readoutText(track: Track, dem: Dem | null, cursor: number): stri
           ? `${fmt(r.current.speed_m_s, 2)} m/s toward ${fmt(r.current.toward_deg, 0)} deg from ${donorName(track.current?.donor ?? null)}`
           : "no model value here (still water used)",
     ],
+    ...(r.current?.up_m_s != null
+      ? ([["vertical_current (model, shown, not applied)", Number.isFinite(r.current.up_m_s) ? `${fmt(r.current.up_m_s * 100, 2)} cm/s, positive up` : "no model value here"]] as [string, string][])
+      : []),
   ]);
 }
 

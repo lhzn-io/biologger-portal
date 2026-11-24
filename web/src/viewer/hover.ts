@@ -4,7 +4,7 @@
  * 1 Hz sample nearest the pointer along the segment it hit.
  */
 import * as THREE from "three";
-import { donorName } from "./current";
+import { donorName, upText } from "./current";
 import type { CurrentArrow } from "./currentArrows";
 import type { Dem } from "./dem";
 import { accelDigits, accelUnit, fmt, readoutAt } from "./readout";
@@ -106,6 +106,7 @@ export function sampleLines(track: Track, dem: Dem | null, i: number): string[] 
         ? `current ${fmt(r.current.speed_m_s, 2)} m/s toward ${fmt(r.current.toward_deg, 0)} deg (model)`
         : "current: no model value here",
     );
+    if (r.current.up_m_s != null && Number.isFinite(r.current.up_m_s)) out.push(`vertical current ${upText(r.current.up_m_s)} (model)`);
   }
   return out;
 }

@@ -83,6 +83,13 @@ const RAMPS = {
  * speed, interpolated in log(speed), from CURRENTS_FLOOR to CURRENTS_TOP m/s. `light` is the light-basemap table
  * (pale aqua to deep teal as speed rises), `dark` its dark-basemap twin on the same speeds (lightness rising).
  */
+/** A vertical current as read: cm/s and its sense, "0.12 cm/s up"; "--" when there is no value. */
+export function upText(upMS: number): string {
+  if (!Number.isFinite(upMS)) return "--";
+  const cm = Math.abs(upMS) * 100;
+  return `${cm.toFixed(2)} cm/s ${cm < 0.005 ? "" : upMS > 0 ? "up" : "down"}`.trimEnd();
+}
+
 export function currentRampColor(v: number, table: "light" | "dark"): Rgb {
   const rows = RAMPS[table];
   const x = Math.log(Math.min(CURRENTS_TOP, Math.max(CURRENTS_FLOOR, Number.isFinite(v) ? v : 0)));
