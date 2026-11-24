@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { GuideLink } from "../components/GuideLink";
 import { ErrorNote, Loading } from "../components/ui";
 import CollectPanel from "../collect/CollectPanel";
 import { matrixText } from "../collect/texts";
@@ -29,9 +30,9 @@ export default function Matrix() {
   return (
     <CollectPanel id="matrix" title="Files by deployment" text={() => matrixText(data)}>
       <p className="mb-3 text-xs text-muted">
-        Count and size of files on the server per kind. "Drive" marks a product that is not on the server
-        while the deployment lists a Google Drive folder, where it may be; the portal does not check Drive.
-        {data.unattributed_files > 0 && ` ${data.unattributed_files} file(s) are not assigned to a deployment.`}
+        Files on the server by kind.
+        {data.unattributed_files > 0 && ` ${data.unattributed_files} not assigned to a deployment.`}{" "}
+        <GuideLink to="hub.html#file-grid" />
       </p>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">

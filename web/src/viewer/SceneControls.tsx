@@ -104,7 +104,7 @@ export default function SceneControls({
           className={inspector ? `${btn} text-ink` : btn}
           aria-pressed={!!inspector}
           onClick={() => onInspector(inspector ? null : "heading")}
-          title="The animal at its attitude with the velocities dead reckoning combined: through the water, the ocean current, and their sum over the ground"
+          title="The animal at its attitude, with its velocities through the water, of the current and over the ground"
         >
           Physics
         </button>

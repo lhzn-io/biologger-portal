@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { GuideLink } from "../components/GuideLink";
 import { Badge, Button, ErrorNote, Panel } from "../components/ui";
 import ValidationRunView from "../components/ValidationRunView";
 import { sendJson, uploadFile } from "../lib/api";
@@ -74,9 +75,8 @@ function UploadPanel() {
         </Button>
       </div>
       <p className="mt-2 text-xs text-muted">
-        Files go up in 64 MB parts and land in the deployment's folder by kind (standard, derived, raw, media). Existing
-        files are never overwritten. For files of several GB, copy them to the server with rsync and run a scan instead.
-        {file && ` Selected: ${file.name}, ${bytes(file.size)}.`}
+        {file ? `Selected: ${file.name}, ${bytes(file.size)}. ` : ""}Existing files are never overwritten.{" "}
+        <GuideLink to="hub.html#uploading-files" />
       </p>
       {upload.isPending && <p className="mt-2 font-mono text-xs">{Math.round(progress * 100)} % sent</p>}
       {upload.error && <ErrorNote error={upload.error} />}
@@ -143,8 +143,7 @@ function NewDeploymentPanel({ onCreated }: { onCreated: (id: string) => void }) 
         )}
       </div>
       <p className="mt-2 text-xs text-muted">
-        The tag type suggests a simulation profile. A run needs the start fix and both times; the end fix pins the track to
-        where the animal was found.
+        A run needs the start fix and both times. <GuideLink to="hub.html#adding-a-deployment" />
       </p>
       {create.error && <ErrorNote error={create.error} />}
     </Panel>
@@ -183,8 +182,7 @@ function SheetPanel() {
       }
     >
       <p className="mb-2 text-xs text-muted">
-        Either of the lab's sheets (keyed by deployment_id or tag_id). The preview shows what would change and whether each
-        deployment has files on the server; nothing is written until you apply the selected rows.
+        Nothing is written until you apply the selected rows. <GuideLink to="hub.html#metadata-sheets" />
       </p>
       <input type="file" accept=".csv,text/csv" onChange={(e) => void onFile(e.target.files?.[0])} />
       {preview.error && <ErrorNote error={preview.error} />}

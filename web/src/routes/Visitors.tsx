@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getJson, sendJson } from "../lib/api";
+import { GuideLink } from "../components/GuideLink";
 import { Button, ErrorNote, Loading, Panel } from "../components/ui";
 
 interface Person {
@@ -61,7 +62,7 @@ export default function Visitors() {
       <header className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
         <h1 className="text-xl">Visitors to the live viewer</h1>
         <span className="text-sm text-muted">
-          whoi-mpg.lhzn.io, signed in through Cloudflare Access. Pages and a few actions, kept 180 days.
+          Kept 180 days.
           {v.last_pull_utc ? ` Last pulled ${v.last_pull_utc.replace("T", " ").replace("Z", " UTC")}.` : " Not pulled yet."}
         </span>
         <span className="ml-auto flex items-center gap-2 text-sm">
@@ -83,8 +84,7 @@ export default function Visitors() {
       </header>
       {!v.configured && (
         <p className="text-sm text-bad">
-          Not configured: the hub needs PORTAL_CF_ACCESS_CLIENT_ID and PORTAL_CF_ACCESS_CLIENT_SECRET (an Access service token
-          for whoi-mpg.lhzn.io/api/admin/*) in deploy/portal.env.
+          Not configured. <GuideLink to="hub.html#visitors" />
         </p>
       )}
 

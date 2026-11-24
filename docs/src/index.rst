@@ -9,15 +9,10 @@ fused bathymetry in a viewer.
    :maxdepth: 1
 
    releases
-   deploy
+   viewer
    currents
-
-Sections are added as each part ships:
-
-- Deployments and the file grid
-- Registering files and reading validation results
-- The track viewer (2D map and 3D view)
-- Collect, then ask your AI
+   hub
+   deploy
 
 Asking an AI
 ------------

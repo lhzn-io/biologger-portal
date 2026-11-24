@@ -1,6 +1,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { GuideLink } from "../components/GuideLink";
 import { Badge, Button, ErrorNote, Loading, Panel } from "../components/ui";
 import { sendJson } from "../lib/api";
 import { useDeployments, useMe } from "../lib/queries";
@@ -259,8 +260,7 @@ function NewBatch() {
         </label>
       </div>
       <p className="mt-1 max-w-3xl text-xs text-muted">
-        The backend picks which runners may take the jobs. biologger-sim computes lab runs on the CPU today, whatever the
-        backend.
+        <GuideLink to="hub.html#simulation-runs" />
       </p>
       <div className="mt-3 flex items-center gap-3 text-sm">
         <input

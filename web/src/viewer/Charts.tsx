@@ -5,6 +5,7 @@ import "@lhzn-io/timecharts/tokens.css";
 import "@lhzn-io/timecharts/charts.css";
 import "./charts-local.css";
 import { CollectButton, useCollectItem } from "../collect/collect";
+import { GuideLink } from "../components/GuideLink";
 import { lines } from "../collect/prompt";
 import { chartText } from "../collect/texts";
 import { donorName } from "./current";
@@ -30,9 +31,12 @@ export interface ChartSeries {
   /** Include zero in the value range, and the least value the range reaches down to. */
   zero?: boolean;
   floor?: number;
-  /** One short line under the chart; the method and its limits go in `caption`, behind the (i) button. */
+  /** One short line under the chart; how to read it goes in `caption`, behind the (i) button. */
   summary?: string;
+  /** One or two sentences; the method and its limits are in the guide, at `doc`. */
   caption?: string;
+  /** The guide page and anchor that explain the chart (under /docs/guide/). */
+  doc?: string;
   /** Facts for the Collect prompt beyond the line statistics. */
   notes?: [string, string][];
 }
@@ -198,21 +202,15 @@ function rollSeries(track: Track, idx: number[], xs: number[]): ChartSeries {
       `net ${((roll.cum[n - 1]! - roll.cum[0]!) / 360).toFixed(2)}` +
       `${stretches ? `; ${stretches} uncertain bridge${stretches === 1 ? "" : "s"} (dashed)` : ""}.`,
     caption:
-      `The running total of roll, in turns: a fish that spins climbs past the whole-turn rules; one that rocks stays ` +
-      `in a band. A turn counts when the total passes 360 degrees (plus 30 for the first of a direction); the rug ` +
-      `marks each, pink right side down (${pos} here), blue the other way (${neg}). Roll is ${ceiling}. Shaded stretches are where roll ` +
-      `cannot be trusted (pitch beyond ${PITCH_LIMIT_DEG} degrees, where roll is undefined; a jump over ` +
-      `${STEP_AMBIGUOUS_DEG} degrees in one sample; or a gap). The total holds through each, then resumes by the ` +
-      `shortest rotation to the next good sample, so no turn is counted inside one: ` +
-      `${(roll.bridgedDeg / 360).toFixed(1)} turns registered in them were set aside. The dashed line and gray band ` +
-      `mark these bridges. What the fish did inside one is unknown, and the change across it can be wrong by up to ` +
-      `half a turn near vertical (more across a gap); any such error carries into the rest of the line as an offset, ` +
-      `so read the level after a bridge as uncertain, and the rocking and climbing within good stretches as sound.`,
+      `Running total of roll in turns: spinning climbs past the whole-turn rules, rocking stays in a band. Ticks mark ` +
+      `turns (pink right side down, blue left). Dashed and shaded: roll uncertain there (bridged).` +
+      (roll.source === "viewer" ? " Spins faster than about 0.3 rev/s are smoothed away." : ""),
+    doc: "viewer.html#cumulative-roll",
     notes: [
       ["roll_source", ceiling],
       ["revolutions", `${pos} positive (right side down), ${neg} negative, ${doubtfulTurns} of them doubtful`],
       ["net_roll_rev", ((roll.cum[n - 1]! - roll.cum[0]!) / 360).toFixed(2)],
-      ["doubtful_samples", `${roll.doubtfulSteps} of ${n} (step over 135 deg, pitch beyond 65 deg, or a gap)`],
+      ["doubtful_samples", `${roll.doubtfulSteps} of ${n} (step over ${STEP_AMBIGUOUS_DEG} deg, pitch beyond ${PITCH_LIMIT_DEG} deg, or a gap)`],
       ["bridged", `across each doubtful stretch only the shortest rotation between the good samples either side is kept; ${(roll.bridgedDeg / 360).toFixed(2)} turns registered inside them set aside (absolute sum)`],
       ["uncertainty", `${stretches} bridged stretches at chart resolution; motion inside each is unknown, and each bridged change can be wrong by up to 0.5 turn near vertical (more across a gap), an error that offsets the rest of the total; net turns are therefore uncertain by up to 0.5 turn per bridge`],
       ["counting", "a turn counts when the running total passes 360 degrees, plus 30 degrees for the first of a direction"],
@@ -302,12 +300,9 @@ function postureSeries(track: Track, idx: number[], xs: number[]): ChartSeries {
     yTicks: { at: [-180, -135, -90, -45, 0, 45, 90, 135, 180].filter((v) => Math.abs(v) <= reach), label: (v) => `${v}` },
     minPad: 2,
     caption:
-      `How far the fish is tipped onto its side: 0 upright, above zero right side down (+90 on its right side), below ` +
-      `zero left side down. Per drawn interval, each side's median and 10 to 90 % range, counting rolls past ` +
-      `${UPRIGHT_DEG} deg (nearer upright counts to neither side); lines faint where a side holds under ` +
-      `${100 * STRONG_SHARE} % of the interval. Hover for each side's share. Over the whole record: right side down ` +
-      `${(100 * rightShare).toFixed(0)} % of the time, left ${(100 * leftShare).toFixed(0)} %. From the accelerometer's ` +
-      `gravity roll, smoothed over 2 to 3 s (posture, not tailbeat).`,
+      `Tipped onto its side: above zero right side down, below left. Each side's median and 10 to 90 % range per ` +
+      `interval; hover for shares. Whole record: right ${(100 * rightShare).toFixed(0)} %, left ${(100 * leftShare).toFixed(0)} %.`,
+    doc: "viewer.html#roll-angle",
     notes: [
       ["definition", `roll angle, positive right side down, negative left side down; per interval each side summarized separately, counting rolls past ${UPRIGHT_DEG} deg`],
       ["time_rolled_past_20_deg", `right ${(100 * rightShare).toFixed(1)} %, left ${(100 * leftShare).toFixed(1)} %`],
@@ -367,10 +362,9 @@ function currentSeries(track: Track, idx: number[], xs: number[]): ChartSeries |
       ? `${model}: median ${ms(quantile(speeds, 0.5))}, 95th percentile ${ms(quantile(speeds, 0.95))}`
       : `${model}: no values`,
     caption:
-      `The current the dead-reckoned track was corrected with, from the ${model} ocean model through forcingkit: ` +
-      `sampled once a minute along the reconstructed track at the animal's depth and interpolated between. It is the ` +
-      `model's current, not a measurement, at the model's resolution. Shaded where the model had no value ` +
-      `(${(100 * missingShare).toFixed(1)} % of the record); the track used still water there.`,
+      `The ${model} model current the track was corrected with, at the animal's depth; a model, not a measurement. ` +
+      `Shaded: no model value (${(100 * missingShare).toFixed(1)} % of the record), still water used.`,
+    doc: "currents.html#the-current-on-a-track-page",
     notes: [
       ["ocean_model", model],
       ["sampling", "once a minute along the reconstructed track, at the animal's depth, interpolated between"],
@@ -555,13 +549,9 @@ function PostureByDepth({ track, collectId }: { track: Track; collectId: string 
           })}
         </svg>
       )}
-      <InfoNote open={info}>
-        Roll in degrees from upright, per depth band: left side down to the left, right side down to the right. Center:
-        the share of the band&apos;s time within {UPRIGHT_DEG} degrees of upright (shaded). Per side: dot the median, bar
-        the middle half of the rolls past {UPRIGHT_DEG} degrees, the figure the share of the band&apos;s time on that side
-        (bars fainter for small shares; rows paler with under 10 minutes). Day is the sun above the horizon at the
-        fish&apos;s position. Right: the time in each row, as a share of all the time summarized, so a row&apos;s
-        statistics can be weighed by how much data they stand on.
+      <InfoNote open={info} doc="viewer.html#roll-by-depth">
+        Per depth band, day and night: share upright (center), each side&apos;s median (dot), middle half (bar) and share of
+        time; right, the time in each row.
       </InfoNote>
     </figure>
   );
@@ -583,8 +573,18 @@ function InfoButton({ open, onToggle, what }: { open: boolean; onToggle: () => v
   );
 }
 
-function InfoNote({ open, children }: { open: boolean; children: ReactNode }) {
-  return open ? <p className="mt-1 max-w-3xl border-l-2 border-line pl-2 text-xs text-muted">{children}</p> : null;
+function InfoNote({ open, doc, children }: { open: boolean; doc?: string; children: ReactNode }) {
+  return open ? (
+    <p className="mt-1 max-w-3xl border-l-2 border-line pl-2 text-xs text-muted">
+      {children}
+      {doc && (
+        <>
+          {" "}
+          <GuideLink to={doc}>More in the guide</GuideLink>
+        </>
+      )}
+    </p>
+  ) : null;
 }
 
 /** One chart with its caption, Collect button and click-to-scrub (also used by the compare page). */
@@ -680,7 +680,11 @@ export function Chart({
         <div className="plot-labels" />
       </div>
       {series.summary && <p className="mt-0.5 text-xs text-muted">{series.summary}</p>}
-      {series.caption && <InfoNote open={info}>{series.caption}</InfoNote>}
+      {series.caption && (
+        <InfoNote open={info} doc={series.doc}>
+          {series.caption}
+        </InfoNote>
+      )}
     </figure>
   );
 }

@@ -79,9 +79,9 @@ export function currentConvergence(track: Track): CurrentConvergence | null {
 /** One sentence for a run whose passes did not settle, or "" (the track page header, the compare table's title). */
 export function convergenceNote(c: CurrentConvergence | null): string {
   if (!c || c.converged) return "";
-  const last = c.lastShiftM == null ? "" : `; the last moved it up to ${Math.round(c.lastShiftM).toLocaleString("en-US")} m`;
-  const limit = c.limitM == null ? "" : ` (settled is under ${Math.round(c.limitM)} m)`;
-  return `The current correction did not converge in ${c.passes} passes${last}${limit}, so this track is provisional`;
+  const last = c.lastShiftM == null ? "" : `, last shift ${Math.round(c.lastShiftM).toLocaleString("en-US")} m`;
+  const limit = c.limitM == null ? "" : ` (limit ${Math.round(c.limitM)} m)`;
+  return `Current correction not converged: ${c.passes} passes${last}${limit}; provisional`;
 }
 
 /**

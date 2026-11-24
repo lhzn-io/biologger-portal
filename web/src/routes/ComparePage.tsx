@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 import { useQueries } from "@tanstack/react-query";
+import { GuideLink } from "../components/GuideLink";
 import { Button, ErrorNote, Loading, Panel } from "../components/ui";
 import CollectPanel from "../collect/CollectPanel";
 import { lines } from "../collect/prompt";
@@ -44,8 +45,6 @@ const km = (m: number | null | undefined, digits = 1) => (m == null || !Number.i
 const pct = (x: number | null | undefined) => (x == null || !Number.isFinite(x) ? "--" : `${(100 * x).toFixed(1)} %`);
 const bearing = (north: number, east: number) => ((Math.atan2(east, north) * 180) / Math.PI + 360) % 360;
 
-/** The sim docs' section on the current-sampling bias of current-corrected tracks (served at /docs/sim/). */
-const KNOWN_LIMIT_DOC = "/docs/sim/tracks.html#known-limit-where-the-current-is-sampled";
 
 /**
  * Every reconstruction of one deployment side by side: the same tag data placed with and without the ocean current,
@@ -172,10 +171,8 @@ export default function ComparePage() {
         unit: "m",
         xs,
         lines: depthLines,
-        caption:
-          "The animal's depth is the same in every reconstruction (it comes from the pressure sensor); what differs is " +
-          "where each places the animal, and so the seafloor under it, read from each track's own DEM crop. Where the " +
-          "animal line runs below a seafloor line, that track puts the animal inside the seabed there.",
+        caption: "Depth is the same in every track; the seafloor differs. The animal below a seafloor line puts that track inside the seabed.",
+        doc: "currents.html#comparing-reconstructions",
       },
     ];
     if (sepLines.length)
@@ -186,9 +183,8 @@ export default function ComparePage() {
         xs,
         lines: sepLines,
         zero: true,
-        caption:
-          "Horizontal distance between each track and the selected one at the same moment. Two tracks that differ only " +
-          "in the current correction start together, and the gap between them is the current's effect so far.",
+        caption: "Horizontal distance from the selected track at the same moment.",
+        doc: "currents.html#comparing-reconstructions",
       });
     return out;
   }, [primary, variants, visible]);
@@ -240,25 +236,9 @@ export default function ComparePage() {
           <span className="font-sans text-base text-muted">track comparison</span>
         </h1>
         <p className="text-sm text-muted">
-          The same tag data reconstructed {recorded} {recorded === 1 ? "way" : "ways"}: dead-reckoned or pinned to the end fix,
-          with or without the ocean current
-          {variants.length > recorded && `, beside ${variants.length - recorded} earlier ${variants.length - recorded === 1 ? "export" : "exports"} (hidden until ticked)`}
-          . Click a row to put the animal on that track; the others show a dot at the same moment.
-        </p>
-        <p className="mt-1 text-sm text-muted" role="note">
-          Every track here is a reconstruction from the tag's sensors and its release and end fixes, not a recorded
-          path; only the fixes are measured positions.
-          {variants.some((v) => v.info.current) && (
-            <>
-              {" "}
-              The tracks with the ocean current carry a known bias in where the current is sampled, which can overstate
-              the drift (see{" "}
-              <a href={KNOWN_LIMIT_DOC} className="text-accent hover:underline">
-                Known limit: where the current is sampled
-              </a>
-              ).
-            </>
-          )}
+          {recorded} {recorded === 1 ? "reconstruction" : "reconstructions"} of the same tag data
+          {variants.length > recorded && `, plus ${variants.length - recorded} earlier ${variants.length - recorded === 1 ? "export" : "exports"} (hidden until ticked)`}
+          ; only the fixes are measured. Click a row to follow a track. <GuideLink to="currents.html#comparing-reconstructions" />
         </p>
       </header>
 
@@ -341,11 +321,6 @@ export default function ComparePage() {
             </tbody>
           </table>
         </div>
-        <p className="mt-2 text-xs text-muted">
-          Below seafloor counts samples more than {BELOW_FLOOR_MARGIN_M} m under the fused DEM at the track's position (of
-          the samples over the DEM); a reconstruction that puts dives inside the seabed is wrong there. Miss before pinning is
-          the dead-reckoned track's distance from the end fix; pinned tracks are stretched and turned to end on it.
-        </p>
       </CollectPanel>
 
       <Panel title="3D view">

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
+import { GuideLink } from "../components/GuideLink";
 import { Button, ErrorNote, Loading, Panel } from "../components/ui";
 import CollectPanel from "../collect/CollectPanel";
 import { mapText, readoutText } from "../collect/texts";
@@ -224,7 +225,7 @@ export default function TrackPage() {
           }}>
             {playing ? "Pause" : "Play"}
           </Button>
-          <span className="flex items-center gap-1 text-muted" title="Seconds of track per second of playback (1x is real time). Type a speed from 0.1 to 86400 and press Enter, or step with the buttons or the up and down arrow keys.">
+          <span className="flex items-center gap-1 text-muted" title="Seconds of track per second (1x is real time): type 0.1 to 86400, or step with the buttons or arrow keys">
             Speed
             <button type="button" className={stepButton} aria-label="Slower" disabled={speed <= SPEED_STEPS[0]!} onClick={() => applySpeed(stepSpeed(speed, -1))}>
               -
@@ -255,7 +256,7 @@ export default function TrackPage() {
               +
             </button>
           </span>
-          <label className="flex items-center gap-1 text-muted" title="What the 3D view's camera does while the track plays. Chase follows from behind and turns with the animal; Orbit stays on the animal at the angle you set: drag, or click the view and use A/D to turn, W/S to tilt, Q/E to zoom.">
+          <label className="flex items-center gap-1 text-muted" title="While playing: Chase follows from behind; Orbit keeps your angle (drag, or A/D, W/S, Q/E)">
             Camera
             <select className="rounded border border-line bg-surface px-1" value={playCam} onChange={(e) => {
               const next = e.target.value as PlayCamera;
@@ -283,12 +284,12 @@ export default function TrackPage() {
         </h1>
         <span className="text-sm text-muted">
           {m.track_model_used} track, {m.count.toLocaleString()} samples at {m.rate_hz} Hz, run {m.run_id}
-          {m.provenance.sim_git_dirty ? " (exported from a simulator checkout with uncommitted changes)" : ""}
-          {resolved?.replaced && `. The link was to run ${linked}, since replaced by this re-export`}
+          {m.provenance.sim_git_dirty ? " (uncommitted simulator changes)" : ""}
+          {resolved?.replaced && `, replacing ${linked}`}
         </span>
         {unsettled && (
           <p className="basis-full text-sm text-warn" role="note">
-            {unsettled}.
+            {unsettled}. <GuideLink to="currents.html#how-the-current-enters-a-track" />
           </p>
         )}
       </header>
@@ -318,7 +319,7 @@ export default function TrackPage() {
         </dl>
         <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
           {playbar}
-          {dem.isLoading && <span className="text-xs text-muted">Fetching topobathymetry (the first view of a track can take up to a minute)...</span>}
+          {dem.isLoading && <span className="text-xs text-muted">Loading terrain (up to a minute the first time)...</span>}
           {dem.error && <span className="text-xs text-bad">No terrain: {dem.error.message}</span>}
           {dem.data && (
             <span className="text-xs text-muted">
@@ -421,8 +422,7 @@ export default function TrackPage() {
         <Charts track={tr} dem={dem.data ?? null} cursor={cursor} onCursor={onCursor} onPick={onPick} collectKey={key} />
       </Panel>
       <p className="text-xs text-muted">
-        Positions between the start and end fixes are reconstructed by dead reckoning ({m.track_model_used}), not
-        observed. Seafloor depths are read from the fused DEM at the reconstructed position.
+        Reconstructed between the fixes ({m.track_model_used}), not observed. <GuideLink to="viewer.html#track-pages" />
       </p>
     </div>
   );

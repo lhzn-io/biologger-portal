@@ -103,7 +103,7 @@ describe("current correction convergence", () => {
     const t = track(3, { model: "fix_pinned", pipeline: [passes(false, [59201.2, 391.3, 67.2])] });
     expect(currentConvergence(t)).toEqual({ converged: false, passes: 3, lastShiftM: 67.2, limitM: 50 });
     expect(convergenceNote(currentConvergence(t))).toBe(
-      "The current correction did not converge in 3 passes; the last moved it up to 67 m (settled is under 50 m), so this track is provisional",
+      "Current correction not converged: 3 passes, last shift 67 m (limit 50 m); provisional",
     );
     expect(describeVariant(t).label).toBe("Pinned to the end fix, NECOFS current (not converged)");
   });

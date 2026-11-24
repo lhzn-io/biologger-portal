@@ -18,7 +18,7 @@ and time every 60 s, in passes:
 - Pass 1 samples along the through-water dead-reckoned track.
 - Each later pass samples along the track that the previous pass placed.
 - The passes stop when the placed track moves less than ``convergence_m`` (50 m) between
-  passes, or when ``max_passes`` is reached (6 by default).
+  passes, or when ``max_passes`` is reached (30 by default).
 
 The simulator documentation gives the full method
 (`Where the current is sampled <../sim/tracks.html#where-the-current-is-sampled>`_).

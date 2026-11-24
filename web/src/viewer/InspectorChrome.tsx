@@ -4,6 +4,7 @@
  * closing it.
  */
 import { useRef, type RefObject } from "react";
+import { GuideLink } from "../components/GuideLink";
 import type { InspectorCamera } from "./inspector";
 import { ACCEL_SCALE, ARROW_COLORS, INSET, insetBox } from "./inspectorView";
 
@@ -142,12 +143,6 @@ function InspectorInfo({ ref }: { ref: RefObject<HTMLDialogElement | null> }) {
         </div>
         <div className="gap-6 md:columns-2">
           <div className={section}>
-            <p>
-              The animal at the cursor time, with the velocities and accelerations its track gives. Tracks come from
-              different methods; some values below depend on the method.
-            </p>
-          </div>
-          <div className={section}>
             <h3 className="font-semibold">Orientation</h3>
             <p>The inset turns with the animal; N on the ring marks north. Up is up.</p>
           </div>
@@ -219,9 +214,11 @@ function InspectorInfo({ ref }: { ref: RefObject<HTMLDialogElement | null> }) {
               <b>attack</b>: nose above the path, positive. <b>slip</b>: path to the animal&apos;s right, positive. In
               body axes, so roll mixes them.
             </p>
-            <p>If the track takes swim along the heading, slip comes only from the current and from climbing while rolled.</p>
           </div>
         </div>
+        <p className="text-muted">
+          <GuideLink to="viewer.html#physics-inspector">More in the guide</GuideLink>
+        </p>
       </div>
     </dialog>
   );

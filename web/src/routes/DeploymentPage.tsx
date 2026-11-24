@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { GuideLink } from "../components/GuideLink";
 import { Badge, Button, ErrorNote, Loading, Panel } from "../components/ui";
 import ValidationRunView from "../components/ValidationRunView";
 import CollectPanel from "../collect/CollectPanel";
@@ -97,9 +98,8 @@ function Tracks({ data, editor }: { data: DeploymentDetail; editor: boolean }) {
     >
       {lacksMagnetometer(data) && (
         <p className="mb-2 text-sm text-muted">
-          No track comparison for this deployment: the tag recorded no magnetometer, so it has no heading.
-          biologger-sim cannot dead-reckon it, with or without the ocean current, and places the track by
-          interpolating between the start and end fixes.
+          No comparison: no magnetometer, so the track runs fix to fix.{" "}
+          <GuideLink to="viewer.html#tags-without-a-magnetometer" />
         </p>
       )}
       {data.tracks.length === 0 ? (
@@ -111,7 +111,6 @@ function Tracks({ data, editor }: { data: DeploymentDetail; editor: boolean }) {
             <Link to={`/deployments/${encodeURIComponent(data.id)}/compare`} className="text-accent hover:underline">
               Compare the {data.tracks.length} tracks
             </Link>
-            <span className="text-muted"> side by side: with and without the ocean current, dead-reckoned and pinned</span>
           </p>
         )}
         <table className="w-full text-sm">
