@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { activityColor, type ActivityScale } from "./activity";
-import { currentColor, currentRampColor, donorName, type CurrentScale } from "./current";
+import { currentColor, currentRampColor, donorCredit, donorName, type CurrentScale } from "./current";
 import { LENGTH_FULL_M_S } from "./currentArrows";
 import { elevationColor, trackDepthColor, type DepthScale } from "./dem";
 
@@ -142,12 +142,23 @@ export function Legend({
 
 const ATTRIBUTION = "Topobathymetry: GEBCO 2025, GMRT (CC BY 4.0), NOAA BlueTopo, NCEI BAG; fused by topobathykit";
 
-/** The data credits behind a small (i), for the map and the 3D view. */
-export function Credits() {
+/**
+ * The data credits behind a small (i), for the map and the 3D view: the terrain, and the ocean model of every shown
+ * track with a current correction (`donors`, as the bundles name them).
+ */
+export function Credits({ donors = [] }: { donors?: (string | null | undefined)[] }) {
   const [open, setOpen] = useState(false);
+  const ocean = [...new Set(donors.map(donorCredit).filter((c): c is string => c != null))];
   return (
     <div className="absolute right-2 bottom-2 flex items-end gap-1 text-[10px]">
-      {open && <p className="max-w-72 rounded bg-panel/90 px-2 py-1 text-muted">{ATTRIBUTION}</p>}
+      {open && (
+        <div className="max-w-72 space-y-0.5 rounded bg-panel/90 px-2 py-1 text-muted">
+          <p>{ATTRIBUTION}</p>
+          {ocean.map((c) => (
+            <p key={c}>{c}</p>
+          ))}
+        </div>
+      )}
       <button
         type="button"
         aria-label={open ? "Hide data credits" : "Show data credits"}

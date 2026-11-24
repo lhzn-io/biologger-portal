@@ -15,6 +15,7 @@ import { angleAt, valueAt } from "./playback";
 import { elevationAt, elevationColor, trackDepthColor, type Dem } from "./dem";
 import type { TrackColor } from "./link";
 import { EARTH_RADIUS_M, indexAt, strideIndices, type Track } from "./track";
+import { arrowLines, hoverSample, projector, sampleLines } from "./hover";
 import { nearestSample } from "./pick";
 import { holdViewForWheel } from "./wheel";
 
@@ -119,6 +120,7 @@ export default function Scene3D({
   inspector,
   onSeek,
   currentArrows = false,
+  hover = true,
 }: {
   track: Track;
   dem: Dem | null;
@@ -152,6 +154,8 @@ export default function Scene3D({
   onSeek?: (at: number) => void;
   /** Draw arrows along the track where the water flows (tracks with a current correction only). */
   currentArrows?: boolean;
+  /** Show a readout of the current arrow or track sample under the pointer. */
+  hover?: boolean;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const state = useRef<SceneState | null>(null);
@@ -180,6 +184,10 @@ export default function Scene3D({
   useEffect(() => {
     onSeekRef.current = onSeek;
   }, [onSeek]);
+  const hoverOn = useRef(hover);
+  useEffect(() => {
+    hoverOn.current = hover;
+  }, [hover]);
 
   // Build the scene once per track and DEM.
   useEffect(() => {
@@ -433,6 +441,28 @@ export default function Scene3D({
     };
     el.addEventListener("dblclick", onDblClick);
 
+    // Hover: a small readout of the current arrow, else the track sample, under a resting pointer. Hidden while a
+    // button is down (dragging the view) and after a wheel turn, until the pointer moves again.
+    const tip = document.createElement("div");
+    tip.className =
+      "pointer-events-none absolute z-10 hidden rounded border border-line bg-panel/90 px-1.5 py-1 font-mono text-[10px] leading-snug whitespace-pre text-ink";
+    el.appendChild(tip);
+    let pointer: [number, number] | null = null;
+    let tipText = "";
+    const hideTip = () => {
+      pointer = null;
+      tip.classList.add("hidden");
+    };
+    const onPointerMove = (e: PointerEvent) => {
+      if (e.buttons || e.target !== renderer.domElement) return hideTip();
+      const r = renderer.domElement.getBoundingClientRect();
+      pointer = [e.clientX - r.left, e.clientY - r.top];
+    };
+    el.addEventListener("pointermove", onPointerMove);
+    el.addEventListener("pointerleave", hideTip);
+    el.addEventListener("pointerdown", hideTip);
+    el.addEventListener("wheel", hideTip, { passive: true });
+
     const clock = new THREE.Clock();
     const lookAt = new THREE.Vector3(); // the point the camera looks at, for sizing the current arrows
     let chaseAtt: { yaw: number; pitch: number } | null = null; // the attitude the chase camera last turned to
@@ -539,6 +569,8 @@ export default function Scene3D({
         if (arrowsOn.current) st.arrows.update(st.exag, perPixel(camera.position.distanceTo(nav.controls.getTarget(lookAt))));
       }
       renderer.render(scene, camera);
+      if (pointer && hoverOn.current) showHover(pointer[0], pointer[1]);
+      else tip.classList.add("hidden");
       // The physics inspector, into its corner of the same canvas, at the same fractional playback position.
       const io = inspectorOn.current;
       st.inspector.setVisible(!!io);
@@ -550,6 +582,38 @@ export default function Scene3D({
         st.inspector.render(renderer, el.clientWidth || 600, el.clientHeight || 400);
       }
     };
+    // Fills and places the hover readout for the pointer at (x, y), CSS px from the canvas's top left.
+    function showHover(x: number, y: number) {
+      const cw = renderer.domElement.clientWidth;
+      const ch = renderer.domElement.clientHeight;
+      const project = projector(camera, cw, ch);
+      let lines: string[] | null = null;
+      const arrow = arrowsOn.current && st.arrows ? st.arrows.hit(project, x, y) : null;
+      if (arrow) lines = arrowLines(track, arrow.arrow, arrow.step);
+      else {
+        const ex = st.exag;
+        const at = (i: number, out: THREE.Vector3) => {
+          const e = track.east[i]!;
+          const d = track.depth[i]!;
+          const n = track.north[i]!;
+          return Number.isFinite(e) && Number.isFinite(d) && Number.isFinite(n) ? out.set(e * S, -d * ex * S, -n * S) : null;
+        };
+        const i = hoverSample(st.lineIdx, at, project, x, y);
+        if (i != null) lines = [...sampleLines(track, dem, i), ...(onSeekRef.current ? ["double-click: move the cursor here"] : [])];
+      }
+      if (!lines) {
+        tip.classList.add("hidden");
+        return;
+      }
+      const text = lines.join("\n");
+      if (text !== tipText) tip.textContent = tipText = text;
+      tip.classList.remove("hidden");
+      const gap = 14;
+      const left = x + gap + tip.offsetWidth > cw ? x - gap - tip.offsetWidth : x + gap;
+      const top = y + gap + tip.offsetHeight > ch ? y - gap - tip.offsetHeight : y + gap;
+      tip.style.left = `${Math.max(0, left)}px`;
+      tip.style.top = `${Math.max(0, top)}px`;
+    }
     loop();
     return () => {
       cancelAnimationFrame(st.frame);
@@ -558,6 +622,11 @@ export default function Scene3D({
       el.removeEventListener("wheel", onAdjust);
       el.removeEventListener("pointerdown", onAdjust);
       el.removeEventListener("dblclick", onDblClick);
+      el.removeEventListener("pointermove", onPointerMove);
+      el.removeEventListener("pointerleave", hideTip);
+      el.removeEventListener("pointerdown", hideTip);
+      el.removeEventListener("wheel", hideTip);
+      tip.remove();
       if (viewRef) viewRef.current = null;
       st.inspector.dispose();
       nav.dispose();

@@ -55,3 +55,8 @@ export function readoutAt(track: Track, dem: Dem | null, i: number): Readout {
 
 export const fmt = (v: number | null | undefined, digits = 1): string =>
   v == null || !Number.isFinite(v) ? "--" : v.toFixed(digits);
+
+/** An activity unit as shown: the run's own (g or m/s^2), with a superscript square. */
+export const accelUnit = (u: string | undefined) => (u || "m/s^2").replace("^2", "²");
+/** Decimals for an activity value: 0.1 m/s^2, or 0.01 g (about the same step). */
+export const accelDigits = (u: string | undefined) => (u === "g" ? 2 : 1);

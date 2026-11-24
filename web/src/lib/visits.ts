@@ -18,6 +18,7 @@ export type VisitAction =
   | "fullscreen"
   | "inspector"
   | "current_arrows"
+  | "hover_readout"
   | "collect_add"
   | "collect_copy_image"
   | "collect_copy_prompt"

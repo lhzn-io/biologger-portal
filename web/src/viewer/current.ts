@@ -15,6 +15,18 @@ export interface CurrentScale {
 /** Display names for forcingkit's ocean donors. */
 const DONOR_NAMES: Record<string, string> = { necofs: "NECOFS", hycom: "HYCOM", doppio: "DOPPIO" };
 
+/** Credits for forcingkit's ocean donors, as the (i) panels show them. */
+const DONOR_CREDITS: Record<string, string> = {
+  necofs: "Ocean current: NECOFS (FVCOM), NECOFS/UMASSD",
+  hycom: "Ocean current: HYCOM, HYCOM Consortium",
+  doppio: "Ocean current: DOPPIO, Rutgers",
+};
+
+/** The credit line for an ocean donor, or null when the bundle does not name one. */
+export function donorCredit(donor: string | null | undefined): string | null {
+  return donor ? (DONOR_CREDITS[donor] ?? `Ocean current: ${donor} model`) : null;
+}
+
 export function donorName(donor: string | null): string {
   return donor ? (DONOR_NAMES[donor] ?? donor) : "an ocean model";
 }

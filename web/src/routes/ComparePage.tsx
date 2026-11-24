@@ -346,7 +346,7 @@ export default function ComparePage() {
                 </p>
               ))}
           </div>
-          <Credits />
+          <Credits donors={variants.filter((v) => visible.has(v.row.run_id)).map((v) => v.track.current?.donor)} />
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
           <Button kind="plain" onClick={() => setPlaying(!playing)}>

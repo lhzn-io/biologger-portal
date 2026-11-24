@@ -127,6 +127,16 @@ ODBA and the corrected track are not independent; the animal's heading against t
 comparison. Like the rest of the current, the arrows show the model's current at the animal's depth, not a
 measurement.
 
+Hover readout
+-------------
+
+Resting the pointer on the track in the 3D view shows that sample's values: time, depth and height above the
+seafloor, heading and pitch, ODBA, the through-water speed dead reckoning used, and the applied current
+(:src:`web/src/viewer/hover.ts`). On a current arrow it shows what the arrow stands for: the mean current over its
+stretch of track, the stretch's length and time span, and how much of it had no model value. Double-click the
+track to move the cursor there. The readout hides while dragging the view; turn it off under Controls ("Hover
+readout"), a setting kept in the page's link.
+
 Physics inspector
 -----------------
 

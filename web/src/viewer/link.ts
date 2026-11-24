@@ -20,8 +20,10 @@ export interface PageLink {
   speed?: number;
   /** The physics inspector inset: shown in a frame, or off. */
   phys?: InspectorFrame | "off";
-  /** Current arrows along the track: on, off, or null to follow the track color (on when colored by current). */
+  /** Current arrows along the track: on, off, or null for the default (on wherever the track has a current). */
   arrows?: boolean | null;
+  /** The 3D view's hover readout: on, off, or null for the default (on). */
+  hover?: boolean | null;
 }
 
 /** The 3D view's track colors: the animal's depth, its ODBA (body acceleration, an activity measure), or the speed
@@ -72,6 +74,8 @@ export function readPageLink(search: string): PageLink {
   if (phys === "heading" || phys === "north") out.phys = phys;
   const arrows = p.get("arrows");
   if (arrows === "1" || arrows === "0") out.arrows = arrows === "1";
+  const hover = p.get("hover");
+  if (hover === "1" || hover === "0") out.hover = hover === "1";
   return out;
 }
 
@@ -95,4 +99,6 @@ export function writePageLink(params: URLSearchParams, s: Required<PageLink>): v
   else params.delete("phys");
   if (s.arrows != null) params.set("arrows", s.arrows ? "1" : "0");
   else params.delete("arrows");
+  if (s.hover != null) params.set("hover", s.hover ? "1" : "0");
+  else params.delete("hover");
 }

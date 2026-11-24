@@ -11,7 +11,7 @@ import Charts from "../viewer/Charts";
 import { convergenceNote, currentConvergence } from "../viewer/compare";
 import { depthScale, loadDem, type DepthScale } from "../viewer/dem";
 import { Credits, Legend } from "../viewer/Legend";
-import { fmt, readoutAt } from "../viewer/readout";
+import { accelDigits, accelUnit, fmt, readoutAt } from "../viewer/readout";
 import Scene3D, { type SceneView } from "../viewer/Scene3D";
 import SceneControls from "../viewer/SceneControls";
 import { logVisit } from "../lib/visits";
@@ -56,6 +56,8 @@ export default function TrackPage() {
   const [trackColor, setTrackColor] = useState<TrackColor>(initial.color ?? DEFAULT_TRACK_COLOR);
   // Null is the default: arrows on wherever the track has a current (they read against any track coloring).
   const [arrowsSet, setArrows] = useState<boolean | null>(initial.arrows ?? null);
+  // The 3D view's hover readout; null is the default (on).
+  const [hoverSet, setHover] = useState<boolean | null>(initial.hover ?? null);
   const [basis, setBasis] = useState<DepthScale["basis"]>(initial.basis ?? "species");
   // The physics inspector inset: hidden unless the viewer or a shared link opens it.
   const [phys, setPhys] = useState<InspectorFrame | null>(initial.phys && initial.phys !== "off" ? initial.phys : null);
@@ -112,11 +114,11 @@ export default function TrackPage() {
   const linkWrite = useRef<((p: URLSearchParams) => void) | null>(null);
   useEffect(() => {
     if (!tr) return;
-    const state = { time: timeOf(tr, cursor), exaggeration: exag, basis, follow, play: playCam, pick, color: trackColor, speed, phys: phys ?? ("off" as const), arrows: arrowsSet };
+    const state = { time: timeOf(tr, cursor), exaggeration: exag, basis, follow, play: playCam, pick, color: trackColor, speed, phys: phys ?? ("off" as const), arrows: arrowsSet, hover: hoverSet };
     linkWrite.current = (p) => writePageLink(p, state);
     const id = setTimeout(() => view.current?.writeLink(), 400);
     return () => clearTimeout(id);
-  }, [tr, cursor, exag, basis, follow, playCam, pick, trackColor, speed, phys, arrowsSet]);
+  }, [tr, cursor, exag, basis, follow, playCam, pick, trackColor, speed, phys, arrowsSet, hoverSet]);
   // While the track plays, Chase and Orbit hold the view on the animal: Chase from behind, turning with it, Orbit
   // at the angle the viewer sets with the mouse. Pausing leaves the camera where it is, back under the viewer's own
   // Follow setting.
@@ -334,7 +336,7 @@ export default function TrackPage() {
 
       <CollectPanel id={`${key}:scene`} title={`3D view, ${depId}`} text={() => mapText(tr, dem.data ?? null, exag, scale, species, byOdba ? activity : null, byCurrent ? flow : null)}>
         <div ref={sceneBox} className={studio ? "fixed inset-0 z-[100] bg-[#0b1220]" : "relative h-[36rem] bg-[#0b1220]"}>
-          <Scene3D track={tr} dem={dem.data ?? null} cursor={pos} exaggeration={exag} colorBy={colorBy} colorMax={colorMax} follow={following} chase={chasing} species={species} viewRef={view} linkWrite={linkWrite} inspector={inspector} onSeek={onCursor} currentArrows={arrows} />
+          <Scene3D track={tr} dem={dem.data ?? null} cursor={pos} exaggeration={exag} colorBy={colorBy} colorMax={colorMax} follow={following} chase={chasing} species={species} viewRef={view} linkWrite={linkWrite} inspector={inspector} onSeek={onCursor} currentArrows={arrows} hover={hoverSet ?? true} />
           <Legend depth={colorBy === "depth" ? scale : null} activity={byOdba ? activity : null} current={byCurrent ? flow : null} arrows={arrows ? flow : null} species={species} />
           <SceneControls
             onFocus={() => view.current?.focusAnimal()}
@@ -380,6 +382,11 @@ export default function TrackPage() {
               logVisit("action", "current_arrows", { on });
               setArrows(on);
             }}
+            hover={hoverSet ?? true}
+            onHover={(on) => {
+              logVisit("action", "hover_readout", { on });
+              setHover(on);
+            }}
             speciesScale={scales.ofSpecies}
             trackScale={scales.track}
             species={species}
@@ -413,7 +420,7 @@ export default function TrackPage() {
               onClose={() => onInspector(null)}
             />
           )}
-          <Credits />
+          <Credits donors={[tr.current?.donor]} />
           {(studio || fullscreen) && (
             <StudioStrip track={tr} cursor={pos} onCursor={onCursor} right={inspector ? insetBox(inspector).width + INSET.right + 8 : 8} />
           )}
@@ -435,11 +442,6 @@ export default function TrackPage() {
     </div>
   );
 }
-
-/** An activity unit as shown: the run's own (g or m/s^2), with a superscript square. */
-const accelUnit = (u: string | undefined) => (u || "m/s^2").replace("^2", "²");
-/** Decimals for an activity value: 0.1 m/s^2, or 0.01 g (about the same step). */
-const accelDigits = (u: string | undefined) => (u === "g" ? 2 : 1);
 
 function Item({ label, value }: { label: string; value: string }) {
   return (

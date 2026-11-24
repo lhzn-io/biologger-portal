@@ -46,6 +46,8 @@ export default function SceneControls({
   onInspectorScale,
   arrows,
   onArrows,
+  hover,
+  onHover,
 }: {
   onFocus: () => void;
   /** The view fills the browser window. */
@@ -83,6 +85,9 @@ export default function SceneControls({
   /** Current arrows along the track are shown. */
   arrows: boolean;
   onArrows: (on: boolean) => void;
+  /** The hover readout is shown. */
+  hover: boolean;
+  onHover: (on: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -177,6 +182,13 @@ export default function SceneControls({
               <span>
                 Current arrows
                 <span className="block opacity-80">{hasCurrent ? "where the water flows; longer is faster" : "no current correction in this track"}</span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2">
+              <input type="checkbox" className="mt-0.5" checked={hover} onChange={(e) => onHover(e.target.checked)} />
+              <span>
+                Hover readout
+                <span className="block opacity-80">the values under the pointer, on the track or an arrow</span>
               </span>
             </label>
           </fieldset>

@@ -12,6 +12,7 @@ import * as THREE from "three";
 import { currentRampColor } from "./current";
 import { alongTrack, arrowLength, stretchArrows, type CurrentArrow } from "./currentArrows";
 import { elevationAt, type Dem } from "./dem";
+import { HOVER_PX, segmentDistance2, type Projector } from "./hover";
 import type { Track } from "./track";
 
 /** A full-length arrow on screen (pixels). */
@@ -48,6 +49,8 @@ export class CurrentArrowLayer {
   private readonly lines: THREE.LineSegments;
   private readonly positions: Float32Array;
   private readonly colors: Float32Array;
+  /** The spacing drawn last, for hit-testing. */
+  private shown: Level | null = null;
 
   constructor(
     track: Track,
@@ -94,6 +97,7 @@ export class CurrentArrowLayer {
     // The finest spacing that keeps neighbors apart, else the coarsest there is (far out, a few arrows still show).
     const level =
       this.levels.find((l) => (l.step * this.unit) / unitsPerPixel >= SPACING * ARROW_PX) ?? this.levels[this.levels.length - 1];
+    this.shown = level ?? null;
     const geo = this.lines.geometry;
     if (!level) {
       geo.setDrawRange(0, 0);
@@ -137,6 +141,25 @@ export class CurrentArrowLayer {
 
   set visible(on: boolean) {
     this.group.visible = on;
+  }
+
+  /** The drawn arrow whose shaft passes within `tolPx` of (x, y), nearest first, with its spacing; null if none. */
+  hit(project: Projector, x: number, y: number, tolPx = HOVER_PX): { arrow: CurrentArrow; step: number } | null {
+    const level = this.shown;
+    if (!level || !this.group.visible) return null;
+    const pos = this.positions;
+    const a = new THREE.Vector3();
+    let best = -1;
+    let bestD = tolPx * tolPx;
+    for (let k = 0; k < level.arrows.length; k++) {
+      const o = k * 18; // six vertices per arrow; the first two are the shaft, tail then head
+      const pa = project(a.set(pos[o]!, pos[o + 1]!, pos[o + 2]!));
+      const pb = project(a.set(pos[o + 3]!, pos[o + 4]!, pos[o + 5]!));
+      if (!pa || !pb) continue;
+      const [d2] = segmentDistance2(x, y, pa[0], pa[1], pb[0], pb[1]);
+      if (d2 <= bestD) [best, bestD] = [k, d2];
+    }
+    return best < 0 ? null : { arrow: level.arrows[best]!, step: level.step };
   }
 }
 

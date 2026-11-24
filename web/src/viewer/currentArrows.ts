@@ -9,6 +9,11 @@ import type { Track } from "./track";
 export interface CurrentArrow {
   /** The sample the arrow is drawn at: the one nearest the middle of its stretch. */
   i: number;
+  /** The first and last sample of the stretch it averages. */
+  from: number;
+  to: number;
+  /** Share of the stretch's samples where the model had no value. */
+  missingShare: number;
   /** Mean eastward and northward current over the stretch (m/s); speed is their vector length. */
   east: number;
   north: number;
@@ -86,7 +91,7 @@ export function stretchArrows(track: Track, key: ArrayLike<number>, step: number
       const mid = start + (k + 0.5) * step;
       let i = a;
       while (i + 1 < b && Math.abs(key[i + 1]! - mid) <= Math.abs(key[i]! - mid)) i++;
-      out.push({ i, east, north, speed: Math.hypot(east, north), toward: towardDeg(east, north) });
+      out.push({ i, from: a, to: b - 1, missingShare: missing / (b - a), east, north, speed: Math.hypot(east, north), toward: towardDeg(east, north) });
     }
     a = b;
   }

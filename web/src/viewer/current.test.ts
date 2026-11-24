@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CURRENTS_RAMP, CURRENTS_RAMP_DARK } from "@lhzn-io/timecharts/currents-ramp";
-import { currentColor, currentRampColor, currentScale, donorName, towardDeg } from "./current";
+import { currentColor, currentRampColor, currentScale, donorCredit, donorName, towardDeg } from "./current";
 import { readPageLink } from "./link";
 import { readoutAt } from "./readout";
 import { parseTrack, type TrackManifest } from "./track";
@@ -107,5 +107,13 @@ describe("standard currents ramp", () => {
     const dark = speeds.map((v) => lum(currentRampColor(v, "dark")));
     light.slice(1).forEach((l, k) => expect(l).toBeLessThan(light[k]!));
     dark.slice(1).forEach((l, k) => expect(l).toBeGreaterThan(dark[k]!));
+  });
+});
+
+describe("ocean credits", () => {
+  it("credits NECOFS to UMass Dartmouth, and names unknown donors", () => {
+    expect(donorCredit("necofs")).toBe("Ocean current: NECOFS (FVCOM), NECOFS/UMASSD");
+    expect(donorCredit("roms_x")).toBe("Ocean current: roms_x model");
+    expect(donorCredit(null)).toBeNull();
   });
 });
