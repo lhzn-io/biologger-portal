@@ -8,6 +8,16 @@ viewer, the top right shows the snapshot time instead; hover over it to see the 
 each release is tagged in the repository
 (`releases on GitHub <https://github.com/lhzn-io/biologger-portal/releases>`_).
 
+.. _v0.4.1:
+
+0.4.1 (2026-11-25)
+------------------
+
+- **The first exports are retired.** The tracks exported on 2026-11-13 (named for the tag and ending in
+  ``-postfacto``) carried no pipeline record. RED001, WHOI.001 and WHOI.006 now have their pinned track
+  (``pin``) as the reviewed track, and a link to a retired ``-postfacto`` track opens the deployment's reviewed
+  track and says which one it replaced. WHOI.003, WHOI.008 and WHOI.009 keep theirs: they have no other track.
+
 .. _v0.4.0:
 
 0.4.0 (2026-11-25)
