@@ -11,16 +11,43 @@ Code links point to lhzn-io/biologger-portal on GitHub at the commit used to bui
 How the current enters a track
 ------------------------------
 
-Dead reckoning moves the animal through the water, but the water also moves. biologger-sim
-adds the model current to each step of the swim. It samples the current at the animal's depth
-and time every 60 s, in passes:
+The tag records how the animal swam: its heading, its depth and how hard it worked. It does not
+record where the water carried it. Dead reckoning adds up the swim from the start fix, one
+sensor sample at a time. The current correction adds up the water's drift the same way: at
+each moment, the model current at the animal's position, depth and time (read once a minute and
+interpolated between), times the time step. The current therefore changes along the track,
+with the tide and with place, and the drift at any moment is the sum of all the current before
+it. A pinned track then stretches and turns the swim, never the drift, so that the track ends on
+the end fix.
 
-- Pass 1 samples along the through-water dead-reckoned track.
-- Each later pass samples along the track that the previous pass placed.
-- The passes stop when the placed track moves less than ``convergence_m`` (50 m) between
-  passes, or when ``max_passes`` is reached (30 by default).
+That is a chicken-and-egg problem. To read the current, you need to know where the animal was;
+to know where the animal was, you need the current. Near the shelf break it matters: the model
+current there changes over a kilometer or two, and a track can be off by more than ten. So
+biologger-sim settles it in passes:
 
-The simulator documentation gives the full method
+1. Read the current along the best track so far. On the first pass that is the track without
+   any current.
+2. Place the track again with that current.
+3. If no point on the track moved more than 50 m since the last pass, stop. Otherwise go back
+   to step 1 and read the current along the new track.
+
+.. figure:: figures/current-passes.png
+   :alt: Four panels of the RED001 swordfish track and a bar chart. In each panel a gray dashed
+         line is where that pass read the current, blue arrows are the current, and a red line
+         is the track the pass placed. The red track moves less each pass, and the bars fall
+         from 17.0 km to 15 m.
+
+   The RED001 swordfish track, pinned to both fixes, with the NECOFS current. Pass 1 reads the
+   current along the track without current (gray) and places a new track (red); pass 2 reads it
+   along that red track, and so on. Dots joined by a dotted line mark the same moment (3, 6 and
+   9 hours after the start fix) on both tracks: where the current was read, and where the pass
+   then put the animal. By pass 5 the track moves only 15 m, so the current is read where the
+   track is drawn. Kilometers from the start fix.
+
+Each pass moves the track less than the one before, usually by two to five times, so a
+deployment of a few hours settles in a handful of passes and a multi-day one in more: the whale
+shark took 22. A track that has not settled after 30 passes is kept and marked "not converged".
+The simulator documentation gives the full method and its settings
 (`Where the current is sampled <../sim/tracks.html#where-the-current-is-sampled>`_).
 
 Each pass adds the current before it places the track on the fixes. A pinned track therefore
@@ -28,13 +55,14 @@ ends on the end fix with or without the current. For pinned tracks, the current 
 shape of the path and how much stretching and turning the pinning needs, but not where the
 track ends.
 
-forcingkit, the service that serves the ocean model, chooses the model. It uses NECOFS (FVCOM,
-UMass Dartmouth) on the Northeast shelf, and HYCOM where NECOFS has no coverage. NECOFS
-resolves the shelf break with triangles about 1.5 km on a side, and with finer triangles along
-the slope and the canyons. The Rutgers DOPPIO model, shown beside NECOFS in some reviews, has
-cells of about 7 km and is not used for the tracks. Neither model is a measurement. Neither
-model resolves well a canyon that is only a few kilometers wide. Credit NECOFS/UMASSD (and
-DOPPIO, Rutgers, when it is shown) wherever the portal shows a current.
+Each current-corrected track names its ocean model, and the track's name carries it
+(``pin_cur_necofs``, ``pin_cur_doppio``). NECOFS (FVCOM, UMass Dartmouth) covers the Northeast
+shelf and resolves the shelf break with triangles about 1.5 km on a side, finer along the slope
+and the canyons. HYCOM covers the open ocean where NECOFS has none. The Rutgers DOPPIO model,
+with cells of about 7 km, is run beside NECOFS on some deployments to show how much the answer
+depends on the model. No model is a measurement, and none resolves well a canyon only a few
+kilometers wide. Credit the model shown (NECOFS/UMASSD, DOPPIO/Rutgers, HYCOM) wherever the
+portal shows a current.
 
 The current on a track page
 ---------------------------
