@@ -59,6 +59,8 @@ export default function TrackPage() {
   const [arrowsSet, setArrows] = useState<boolean | null>(initial.arrows ?? null);
   // The 3D view's hover readout; null is the default (on).
   const [hoverSet, setHover] = useState<boolean | null>(initial.hover ?? null);
+  // Arrows tilted by the vertical current; null is the default (on).
+  const [tiltSet, setTilt] = useState<boolean | null>(initial.tilt ?? null);
   const [basis, setBasis] = useState<DepthScale["basis"]>(initial.basis ?? "species");
   // The physics inspector inset: hidden unless the viewer or a shared link opens it.
   const [phys, setPhys] = useState<InspectorFrame | null>(initial.phys && initial.phys !== "off" ? initial.phys : null);
@@ -115,11 +117,11 @@ export default function TrackPage() {
   const linkWrite = useRef<((p: URLSearchParams) => void) | null>(null);
   useEffect(() => {
     if (!tr) return;
-    const state = { time: timeOf(tr, cursor), exaggeration: exag, basis, follow, play: playCam, pick, color: trackColor, speed, phys: phys ?? ("off" as const), arrows: arrowsSet, hover: hoverSet };
+    const state = { time: timeOf(tr, cursor), exaggeration: exag, basis, follow, play: playCam, pick, color: trackColor, speed, phys: phys ?? ("off" as const), arrows: arrowsSet, hover: hoverSet, tilt: tiltSet };
     linkWrite.current = (p) => writePageLink(p, state);
     const id = setTimeout(() => view.current?.writeLink(), 400);
     return () => clearTimeout(id);
-  }, [tr, cursor, exag, basis, follow, playCam, pick, trackColor, speed, phys, arrowsSet, hoverSet]);
+  }, [tr, cursor, exag, basis, follow, playCam, pick, trackColor, speed, phys, arrowsSet, hoverSet, tiltSet]);
   // While the track plays, Chase and Orbit hold the view on the animal: Chase from behind, turning with it, Orbit
   // at the angle the viewer sets with the mouse. Pausing leaves the camera where it is, back under the viewer's own
   // Follow setting.
@@ -340,8 +342,8 @@ export default function TrackPage() {
 
       <CollectPanel id={`${key}:scene`} title={`3D view, ${depId}`} text={() => mapText(tr, dem.data ?? null, exag, scale, species, byOdba ? activity : null, byCurrent ? flow : null)}>
         <div ref={sceneBox} className={studio ? "fixed inset-0 z-[100] bg-[#0b1220]" : "relative h-[36rem] bg-[#0b1220]"}>
-          <Scene3D track={tr} dem={dem.data ?? null} cursor={pos} exaggeration={exag} colorBy={colorBy} colorMax={colorMax} follow={following} chase={chasing} species={species} viewRef={view} linkWrite={linkWrite} inspector={inspector} onSeek={onCursor} currentArrows={arrows} hover={hoverSet ?? true} />
-          <Legend depth={colorBy === "depth" ? scale : null} activity={byOdba ? activity : null} current={byCurrent ? flow : null} arrows={arrows ? flow : null} species={species} />
+          <Scene3D track={tr} dem={dem.data ?? null} cursor={pos} exaggeration={exag} colorBy={colorBy} colorMax={colorMax} follow={following} chase={chasing} species={species} viewRef={view} linkWrite={linkWrite} inspector={inspector} onSeek={onCursor} currentArrows={arrows} arrowTilt={tiltSet ?? true} hover={hoverSet ?? true} />
+          <Legend depth={colorBy === "depth" ? scale : null} activity={byOdba ? activity : null} current={byCurrent ? flow : null} arrows={arrows ? flow : null} arrowTilt={tr.current?.up && (tiltSet ?? true) ? exag : null} species={species} />
           <SceneControls
             onFocus={() => view.current?.focusAnimal()}
             studio={studio}
@@ -386,6 +388,12 @@ export default function TrackPage() {
               logVisit("action", "current_arrows", { on });
               setArrows(on);
             }}
+            tilt={tiltSet ?? true}
+            onTilt={(on) => {
+              logVisit("action", "arrow_tilt", { on });
+              setTilt(on);
+            }}
+            hasVertical={tr.current?.up != null}
             hover={hoverSet ?? true}
             onHover={(on) => {
               logVisit("action", "hover_readout", { on });
@@ -424,7 +432,7 @@ export default function TrackPage() {
               onClose={() => onInspector(null)}
             />
           )}
-          <Credits donors={[tr.current?.donor]} />
+          <Credits donors={[tr.current?.model]} />
           {(studio || fullscreen) && (
             <StudioStrip track={tr} cursor={pos} onCursor={onCursor} right={inspector ? insetBox(inspector).width + INSET.right + 8 : 8} />
           )}

@@ -20,6 +20,8 @@ export interface CurrentArrow {
   speed: number;
   /** Direction the water flows toward, degrees clockwise from north. */
   toward: number;
+  /** Mean upward current over the stretch (m/s), from the samples with a vertical value; 0 when there is none. */
+  up: number;
 }
 
 /** Track distances (m) the 3D view's arrows may be spaced by. */
@@ -70,6 +72,8 @@ export function stretchArrows(track: Track, key: ArrayLike<number>, step: number
     let north = 0;
     let used = 0;
     let missing = 0;
+    let up = 0;
+    let upUsed = 0;
     for (let i = a; i < b; i++) {
       if (c.missing[i]) {
         missing++;
@@ -82,6 +86,11 @@ export function stretchArrows(track: Track, key: ArrayLike<number>, step: number
         north += no;
         used++;
       }
+      const w = c.up ? c.up[i]! : NaN;
+      if (Number.isFinite(w)) {
+        up += w;
+        upUsed++;
+      }
     }
     // A last stretch shorter than half a step is a stub: no arrow, so the line does not end on one.
     const stub = b === n && out.length > 0 && key[b - 1]! - key[a]! < step / 2;
@@ -91,7 +100,17 @@ export function stretchArrows(track: Track, key: ArrayLike<number>, step: number
       const mid = start + (k + 0.5) * step;
       let i = a;
       while (i + 1 < b && Math.abs(key[i + 1]! - mid) <= Math.abs(key[i]! - mid)) i++;
-      out.push({ i, from: a, to: b - 1, missingShare: missing / (b - a), east, north, speed: Math.hypot(east, north), toward: towardDeg(east, north) });
+      out.push({
+        i,
+        from: a,
+        to: b - 1,
+        missingShare: missing / (b - a),
+        east,
+        north,
+        speed: Math.hypot(east, north),
+        toward: towardDeg(east, north),
+        up: upUsed > 0 ? up / upUsed : 0,
+      });
     }
     a = b;
   }

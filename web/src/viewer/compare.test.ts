@@ -57,6 +57,22 @@ describe("track comparison", () => {
     expect(new Set([dr, drCur, pin, pinCur, old].map((v) => variantColor(v))).size).toBe(5);
   });
 
+  it("orders current variants by model, and labels a local model by its own name", () => {
+    const pinned = (params: Record<string, unknown>) =>
+      describeVariant(track(3, { model: "fix_pinned", pipeline: [step("current_correction", "forcingkit", params), step("placement", "fix_pinned")] }));
+    const regional = pinned({ donor_used: "regional-x", donor_label: "Example regional model" });
+    const doppio = pinned({ donor_used: "doppio" });
+    const necofs = pinned({ donor_used: "necofs" });
+    const none = describeVariant(track(3, { model: "fix_pinned", pipeline: [step("placement", "fix_pinned")] }));
+    expect(regional.label).toBe("Pinned to the end fix, Example regional model current");
+    expect([regional, doppio, none, necofs].sort((a, b) => a.order - b.order).map((v) => v.current ?? "none")).toEqual([
+      "none",
+      "necofs",
+      "doppio",
+      "regional-x",
+    ]);
+  });
+
   it("reads the current, placement and metrics from the record", () => {
     const tr = track(3, {
       model: "fix_pinned",

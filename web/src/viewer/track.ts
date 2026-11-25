@@ -47,6 +47,23 @@ export interface PipelineStep {
   params: Record<string, unknown>;
 }
 
+/** An ocean model as a bundle names it: forcingkit's donor id ("necofs") or a local store's model id, with the
+ * label, credit, vertical-velocity source ("model" or "continuity") and caveat a local store carries. */
+export interface OceanModel {
+  id: string | null;
+  label: string | null;
+  credit: string | null;
+  wSource: string | null;
+  caveat: string | null;
+}
+
+/** An ocean model's identity from a current_correction step's params: forcingkit donors by id, a local store also
+ * by the label, credit, vertical-velocity source and caveat it carries. */
+export function modelFromParams(params: Record<string, unknown> | undefined): OceanModel {
+  const s = (k: string) => (typeof params?.[k] === "string" && params[k] ? (params[k] as string) : null);
+  return { id: s("donor_used"), label: s("donor_label"), credit: s("donor_credit"), wSource: s("w_source"), caveat: s("donor_caveat") };
+}
+
 /** The ocean current the track was corrected with, as the exporter applied it (m/s, at the animal's depth). */
 interface TrackCurrent {
   east: Float32Array;
@@ -57,6 +74,8 @@ interface TrackCurrent {
   missing: Float32Array;
   /** The ocean model forcingkit used ("necofs", "hycom"), from the current_correction step. */
   donor: string | null;
+  /** The model's identity from the same step (`modelFromParams`). */
+  model: OceanModel;
   /** The model's upward current (m/s), shown but not applied (NaN where the model has none); null when the
    * model gives no vertical current (HYCOM) or the bundle predates the column. */
   up: Float32Array | null;
@@ -182,6 +201,7 @@ export function parseTrack(manifest: TrackManifest, buffer: ArrayBuffer): Track 
       speed,
       missing,
       donor: typeof donor === "string" ? donor : null,
+      model: modelFromParams(cc?.params),
       up: optional("current_up_m_s"),
     };
   }

@@ -183,8 +183,9 @@ function InspectorInfo({ ref }: { ref: RefObject<HTMLDialogElement | null> }) {
             </p>
             <p>
               <Swatch k="current" />
-              <b>current</b>: the current the track applied. <Swatch k="ground" />
-              <b>ground</b>: swim plus current.
+              <b>current</b>: the model current at the animal; the track applied its horizontal part, and its
+              vertical part, where the model has one, is shown only. <Swatch k="ground" />
+              <b>ground</b>: swim plus the horizontal current.
             </p>
             <p>
               <Swatch k="vertical" />

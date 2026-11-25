@@ -2,7 +2,7 @@
  * Comparing reconstructions of one deployment: what each track is (placement and current correction, from its
  * pipeline record), its color, and the numbers the compare page's table shows.
  */
-import { donorName } from "./current";
+import { donorName, modelFromParams, modelRank } from "./current";
 import { elevationAt, type Dem } from "./dem";
 import { indexAt, timeOf, type PipelineStep, type Track } from "./track";
 
@@ -39,15 +39,17 @@ function lastStep(pipeline: PipelineStep[] | undefined, step: string): PipelineS
 export function describeVariant(track: Track): VariantInfo {
   const m = track.manifest;
   const placement: Placement = m.track_model_used;
-  const base = { dead_reckoning: 0, fix_pinned: 2, fix_interpolation: 4 }[placement] ?? 6;
+  // Placements ten apart; within one, no current first, then the models in modelRank's order.
+  const base = { dead_reckoning: 0, fix_pinned: 10, fix_interpolation: 20 }[placement] ?? 30;
   if (!m.pipeline) {
-    return { label: `${placementLabel(placement)} (earlier export, no pipeline record)`, placement, current: undefined, order: 10 + base };
+    return { label: `${placementLabel(placement)} (earlier export, no pipeline record)`, placement, current: undefined, order: 100 + base };
   }
   const cc = lastStep(m.pipeline, "current_correction");
   const donor = cc && cc.status === "applied" ? (typeof cc.params.donor_used === "string" ? cc.params.donor_used : "") : null;
+  const model = modelFromParams(cc?.params);
   const unsettled = currentConvergence(track)?.converged === false ? " (not converged)" : "";
-  const label = `${placementLabel(placement)}, ${donor == null ? "no current" : `${donorName(donor || null)} current${unsettled}`}`;
-  return { label, placement, current: donor, order: base + (donor == null ? 0 : 1) };
+  const label = `${placementLabel(placement)}, ${donor == null ? "no current" : `${donorName(model)} current${unsettled}`}`;
+  return { label, placement, current: donor, order: base + (donor == null ? 0 : 1 + modelRank(model)) };
 }
 
 export interface CurrentConvergence {
@@ -117,7 +119,7 @@ export function currentSummary(track: Track): CurrentSummary | null {
   const samples = Number(cc.params.samples);
   const missing = Number(cc.params.missing);
   return {
-    donor: donorName(typeof cc.params.donor_used === "string" ? cc.params.donor_used : null),
+    donor: donorName(modelFromParams(cc.params)),
     missingShare: samples > 0 && Number.isFinite(missing) ? missing / samples : NaN,
     driftEnd: d && typeof d.north === "number" && typeof d.east === "number" ? { north: d.north, east: d.east } : null,
   };

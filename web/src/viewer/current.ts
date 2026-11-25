@@ -1,7 +1,7 @@
 /** The applied ocean current as the 3D view's track color and in the readout: scale, color ramp, direction. */
 import { CURRENTS_FLOOR, CURRENTS_RAMP, CURRENTS_RAMP_DARK, CURRENTS_TOP } from "@lhzn-io/timecharts/currents-ramp";
 import { LINE_POINTS, segmentMeans } from "./activity";
-import { strideIndices, type Track } from "./track";
+import { modelFromParams, strideIndices, type OceanModel, type Track } from "./track";
 
 export interface CurrentScale {
   max: number;
@@ -10,6 +10,7 @@ export interface CurrentScale {
   stretch_s: number;
   /** The ocean model the current came from, when the bundle names it. */
   donor: string | null;
+  model: OceanModel;
 }
 
 /** Display names for forcingkit's ocean donors. */
@@ -22,13 +23,38 @@ const DONOR_CREDITS: Record<string, string> = {
   doppio: "Ocean current: DOPPIO, Rutgers",
 };
 
-/** The credit line for an ocean donor, or null when the bundle does not name one. */
-export function donorCredit(donor: string | null | undefined): string | null {
-  return donor ? (DONOR_CREDITS[donor] ?? `Ocean current: ${donor} model`) : null;
+/** The order of the known models on the compare page, after the tracks without a current. */
+const MODEL_RANK: Record<string, number> = { necofs: 0, doppio: 1, hycom: 2 };
+
+export const modelRank = (m: OceanModel | string | null | undefined): number => MODEL_RANK[idOf(m) ?? ""] ?? 3;
+
+type ModelRef = OceanModel | string | null | undefined;
+const idOf = (m: ModelRef) => (typeof m === "string" ? m || null : (m?.id ?? null));
+
+export { modelFromParams };
+
+/** The credit line for an ocean model, or null when the bundle does not name one: the model's own credit when it
+ * carries one, else forcingkit's donors by id. */
+export function donorCredit(model: ModelRef): string | null {
+  const id = idOf(model);
+  if (typeof model === "object" && model?.credit) return `Ocean current: ${model.label ?? id ?? "a model"}, ${model.credit}`;
+  return id ? (DONOR_CREDITS[id] ?? `Ocean current: ${id} model`) : null;
 }
 
-export function donorName(donor: string | null): string {
-  return donor ? (DONOR_NAMES[donor] ?? donor) : "an ocean model";
+/** A model's name: its own label, else forcingkit's name for the donor, else "an ocean model". */
+export function donorName(model: ModelRef): string {
+  if (typeof model === "object" && model?.label) return model.label;
+  const id = idOf(model);
+  return id ? (DONOR_NAMES[id] ?? id) : "an ocean model";
+}
+
+/** The model as a noun phrase ending in "model": "NECOFS model", "Example regional model", or
+ * "ocean model" when the bundle names none. */
+export function modelPhrase(model: ModelRef): string {
+  const id = idOf(model);
+  if (!id && !(typeof model === "object" && model?.label)) return "ocean model";
+  const name = donorName(model);
+  return /\bmodel$/i.test(name) ? name : `${name} model`;
 }
 
 /**
@@ -49,7 +75,7 @@ export function currentScale(track: Track): CurrentScale | null {
   const max = Math.max(step, Math.ceil(p98 / step - 1e-9) * step);
   const ticks = Array.from({ length: Math.round(max / step) + 1 }, (_, k) => Number((k * step).toFixed(2)));
   const stretch_s = idx.length > 1 ? (idx[1]! - idx[0]!) / track.manifest.rate_hz : 1 / track.manifest.rate_hz;
-  return { max: Number(max.toFixed(2)), ticks, stretch_s, donor: c.donor };
+  return { max: Number(max.toFixed(2)), ticks, stretch_s, donor: c.donor, model: c.model };
 }
 
 // Light to dark in greens, apart from the blue terrain, the yellow-magenta depth ramp and the yellow-violet ODBA ramp.

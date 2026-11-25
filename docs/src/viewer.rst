@@ -110,6 +110,13 @@ On a track with the current correction, arrows show where the water flows
   closer), and keep about the same size on screen. Where the track doubles back, arrows from different passes can
   sit close together.
   Stretches where the model had no value for more than half the samples get no arrow.
+- **Tilted by the vertical current**, where the model gives one: each arrow rises or sinks with the stretch's
+  mean upward current, exaggerated by the same factor as the depth, so it lies along the water's path as the
+  scene draws it. At 5x, RED001's arrows tilt about 3 degrees at the median; they tilt steeply where the
+  horizontal flow is slack, since a small vertical current is then most of the flow. The legend states the
+  exaggeration; turn tilting off under Controls ("Tilt with the vertical current"), a setting kept in the
+  page's link (``tilt=0``). Length still follows the horizontal speed. On a model that gives no vertical
+  current (HYCOM, NYOFS, DBOFS, until forcingkit computes one), the arrows stay horizontal.
 - **On the current chart**, a row of arrows along the top: the hourly mean direction, north up, colored by the
   hourly mean speed; hover for the values. The chart thins them to fit its width.
 
@@ -134,7 +141,7 @@ Resting the pointer on the track in the 3D view shows that sample's values: time
 seafloor, heading and pitch, ODBA, the through-water speed dead reckoning used, the applied current, and the
 model's vertical current where the model gives one (:src:`web/src/viewer/hover.ts`). On a current arrow it shows what the arrow stands for: the mean current over its
 stretch of track, the stretch's length and time span, and how much of it had no model value. Double-click the
-track to move the cursor there. The readout hides while dragging the view; turn it off under Controls ("Hover
+track to move the cursor there. An arrow's readout includes its mean vertical current where the model gives one. The readout hides while dragging the view; turn it off under Controls ("Hover
 readout"), a setting kept in the page's link.
 
 Physics inspector

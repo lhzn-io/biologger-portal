@@ -24,6 +24,8 @@ export interface PageLink {
   arrows?: boolean | null;
   /** The 3D view's hover readout: on, off, or null for the default (on). */
   hover?: boolean | null;
+  /** Current arrows tilted by the vertical current: on, off, or null for the default (on). */
+  tilt?: boolean | null;
 }
 
 /** The 3D view's track colors: the animal's depth, its ODBA (body acceleration, an activity measure), or the speed
@@ -76,6 +78,8 @@ export function readPageLink(search: string): PageLink {
   if (arrows === "1" || arrows === "0") out.arrows = arrows === "1";
   const hover = p.get("hover");
   if (hover === "1" || hover === "0") out.hover = hover === "1";
+  const tilt = p.get("tilt");
+  if (tilt === "1" || tilt === "0") out.tilt = tilt === "1";
   return out;
 }
 
@@ -101,4 +105,6 @@ export function writePageLink(params: URLSearchParams, s: Required<PageLink>): v
   else params.delete("arrows");
   if (s.hover != null) params.set("hover", s.hover ? "1" : "0");
   else params.delete("hover");
+  if (s.tilt != null) params.set("tilt", s.tilt ? "1" : "0");
+  else params.delete("tilt");
 }

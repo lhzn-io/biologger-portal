@@ -3,10 +3,22 @@ import type { TrackRow } from "./types";
 /**
  * Track page links that survive a re-export. A run id is its UTC start time and a name from the export config
  * (`20261119-135911_pin_cur`); a re-export of the same config makes a new id with the same name. A link can name
- * the run (`pin_cur`) and open the current run of that name, or give the exact id and open that run while it exists.
+ * the run (`pin_cur_necofs`) and open the current run of that name, or give the exact id and open that run while it
+ * exists.
+ *
+ * Current-corrected runs were named `pin_cur` and `dr_cur` until 2026-11-24, when each took its model's name
+ * (`pin_cur_necofs`, `pin_cur_hycom`, `pin_cur_doppio`). A link to an old name, once no run
+ * of that name is left, opens the run that took over: the model forcingkit picked for those runs, NECOFS on the
+ * Northeast Shelf, else HYCOM.
  */
 
 const STAMP = /^\d{8}-\d{6}_/;
+
+/** Old run names and, in order, the names that replaced them. */
+const RENAMED: Record<string, string[]> = {
+  pin_cur: ["pin_cur_necofs", "pin_cur_hycom"],
+  dr_cur: ["dr_cur_necofs", "dr_cur_hycom"],
+};
 
 /** The run's name: its id without the leading start time (the id itself when it has none). */
 export function runName(runId: string): string {
@@ -33,7 +45,12 @@ export function resolveRun(tracks: TrackRow[], depId: string, param: string): Re
     if (t.deployment_id !== depId || runName(t.run_id) !== name) continue;
     if (!best || rank(t) > rank(best) || (rank(t) === rank(best) && t.run_id > best.run_id)) best = t;
   }
-  return best ? { row: best, replaced: param !== name } : null;
+  if (best) return { row: best, replaced: param !== name };
+  for (const next of RENAMED[name] ?? []) {
+    const found = resolveRun(tracks, depId, next);
+    if (found) return { row: found.row, replaced: true };
+  }
+  return null;
 }
 
 /** The path segment that opens `row`: its name when the name leads to it, else its exact id. */

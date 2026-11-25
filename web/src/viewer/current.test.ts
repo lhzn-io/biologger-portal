@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CURRENTS_RAMP, CURRENTS_RAMP_DARK } from "@lhzn-io/timecharts/currents-ramp";
-import { currentColor, currentRampColor, currentScale, donorCredit, donorName, towardDeg } from "./current";
+import { currentColor, currentRampColor, currentScale, donorCredit, donorName, modelFromParams, modelPhrase, towardDeg } from "./current";
 import { readPageLink } from "./link";
 import { readoutAt } from "./readout";
 import { parseTrack, type TrackManifest } from "./track";
@@ -115,5 +115,27 @@ describe("ocean credits", () => {
     expect(donorCredit("necofs")).toBe("Ocean current: NECOFS (FVCOM), NECOFS/UMASSD");
     expect(donorCredit("roms_x")).toBe("Ocean current: roms_x model");
     expect(donorCredit(null)).toBeNull();
+  });
+
+  it("prefers a local model's own label and credit, and reads its vertical-velocity source", () => {
+    const m = modelFromParams({
+      donor_used: "regional-x",
+      donor_label: "Example regional model",
+      donor_credit: "Example Lab",
+      w_source: "model",
+      donor_caveat: "tides strong near the surface",
+    });
+    expect(donorName(m)).toBe("Example regional model");
+    expect(modelPhrase(m)).toBe("Example regional model");
+    expect(donorCredit(m)).toBe(
+      "Ocean current: Example regional model, Example Lab",
+    );
+    expect(m.wSource).toBe("model");
+    expect(m.caveat).toBe("tides strong near the surface");
+    const necofs = modelFromParams({ donor_used: "necofs" });
+    expect(donorName(necofs)).toBe("NECOFS");
+    expect(modelPhrase(necofs)).toBe("NECOFS model");
+    expect(donorCredit(necofs)).toBe("Ocean current: NECOFS (FVCOM), NECOFS/UMASSD");
+    expect(modelPhrase(modelFromParams(undefined))).toBe("ocean model");
   });
 });

@@ -1,6 +1,9 @@
 /**
- * The 3D view's current arrows, drawn as fine pen vectors: a one-pixel shaft and two barbs, horizontal, with the head
- * on the track and the shaft reaching back toward where the water comes from. Longer and more saturated is faster.
+ * The 3D view's current arrows, drawn as fine pen vectors: a one-pixel shaft and two barbs, with the head on the
+ * track and the shaft reaching back toward where the water comes from. Longer and more saturated is faster. With
+ * tilt on, an arrow rises or sinks with the model's vertical current, exaggerated by the same factor as the depth,
+ * so it lies along the water's path as the scene draws it; with tilt off, or without a vertical current, it is
+ * horizontal.
  *
  * They show at every zoom, spaced along the track so neighbors do not overlap on screen: a coarse spacing in
  * whole-scene views, finer stretches of track distance as the view comes closer. Their on-screen size
@@ -36,8 +39,8 @@ interface Level {
   arrows: CurrentArrow[];
   /** Length as a share of ARROW_PX, per arrow. */
   lengths: number[];
-  /** Horizontal unit direction in the scene (x east, z south), per arrow. */
-  dirs: THREE.Vector3[];
+  /** The mean current per arrow (m/s): east, north and up, for the shaft's direction at the drawn exaggeration. */
+  flows: [number, number, number][];
   /** Where the head sits, per arrow: east, north and depth (m) on the drawn track line. */
   heads: [number, number, number][];
   ink: THREE.Color[];
@@ -68,7 +71,7 @@ export class CurrentArrowLayer {
         step,
         arrows,
         lengths: arrows.map((a) => arrowLength(a.speed)),
-        dirs: arrows.map((a) => new THREE.Vector3(Math.sin(a.toward * D2R), 0, -Math.cos(a.toward * D2R))),
+        flows: arrows.map((a): [number, number, number] => [a.east, a.north, a.up]),
         heads: arrows.map((a) => onLine(track, lineIdx, a.i)),
         ink: arrows.map((a) => {
           const floor = dem ? elevationAt(dem, track.lat[a.i]!, track.lon[a.i]!) : NaN;
@@ -93,7 +96,7 @@ export class CurrentArrowLayer {
    * Draws the finest spacing whose neighbors are at least SPACING arrow lengths apart at `unitsPerPixel` (scene
    * units per screen pixel where the camera looks), or the coarsest when none is wide enough.
    */
-  update(exaggeration: number, unitsPerPixel: number): void {
+  update(exaggeration: number, unitsPerPixel: number, tilt = true): void {
     // The finest spacing that keeps neighbors apart, else the coarsest there is (far out, a few arrows still show).
     const level =
       this.levels.find((l) => (l.step * this.unit) / unitsPerPixel >= SPACING * ARROW_PX) ?? this.levels[this.levels.length - 1];
@@ -108,6 +111,8 @@ export class CurrentArrowLayer {
     const barb = BARB_PX * unitsPerPixel;
     const c = Math.cos(BARB_DEG * D2R);
     const s = Math.sin(BARB_DEG * D2R);
+    const d = new THREE.Vector3();
+    const p = new THREE.Vector3();
     let v = 0;
     const put = (x: number, y: number, z: number, ink: THREE.Color) => {
       pos[v * 3] = x;
@@ -119,20 +124,21 @@ export class CurrentArrowLayer {
       v++;
     };
     level.heads.forEach(([east, north, depth], k) => {
-      const d = level.dirs[k]!;
+      const [fe, fn, fu] = level.flows[k]!;
+      arrowFrame(fe, fn, tilt ? fu : 0, exaggeration, d, p);
       const ink = level.ink[k]!;
-      // The head is on the track; the tail reaches upstream.
+      // The head is on the track; the tail reaches upstream (and down-current in the vertical, when tilted).
       const hx = east * this.unit;
       const hy = -depth * exaggeration * this.unit;
       const hz = -north * this.unit;
       const len = ARROW_PX * level.lengths[k]! * unitsPerPixel;
-      put(hx - d.x * len, hy, hz - d.z * len, ink);
+      put(hx - d.x * len, hy - d.y * len, hz - d.z * len, ink);
       put(hx, hy, hz, ink);
-      // Barbs: back from the head, turned either way about the vertical.
+      // Barbs: back from the head, turned either way in the plane of the shaft and the horizontal across it.
       put(hx, hy, hz, ink);
-      put(hx - (d.x * c - d.z * s) * barb, hy, hz - (d.z * c + d.x * s) * barb, ink);
+      put(hx - (d.x * c + p.x * s) * barb, hy - (d.y * c + p.y * s) * barb, hz - (d.z * c + p.z * s) * barb, ink);
       put(hx, hy, hz, ink);
-      put(hx - (d.x * c + d.z * s) * barb, hy, hz - (d.z * c - d.x * s) * barb, ink);
+      put(hx - (d.x * c - p.x * s) * barb, hy - (d.y * c - p.y * s) * barb, hz - (d.z * c - p.z * s) * barb, ink);
     });
     geo.setDrawRange(0, v);
     (geo.getAttribute("position") as THREE.BufferAttribute).needsUpdate = true;
@@ -161,6 +167,21 @@ export class CurrentArrowLayer {
     }
     return best < 0 ? null : { arrow: level.arrows[best]!, step: level.step };
   }
+}
+
+/**
+ * An arrow's unit shaft direction `d` in the scene (x east, y up, z south) for a current of `east`, `north` and `up`
+ * m/s drawn at vertical `exaggeration`, and the horizontal unit `p` across it that the barbs turn toward. The
+ * vertical part is exaggerated like the depth, so the shaft follows the water's path as the scene draws it.
+ */
+export function arrowFrame(east: number, north: number, up: number, exaggeration: number, d: THREE.Vector3, p: THREE.Vector3): void {
+  d.set(east, Number.isFinite(up) ? up * exaggeration : 0, -north);
+  if (d.lengthSq() === 0) d.set(0, 0, -1);
+  d.normalize();
+  // Across the shaft, horizontal: d x up. Straight up or down, any horizontal will do.
+  p.set(-d.z, 0, d.x);
+  if (p.lengthSq() < 1e-12) p.set(1, 0, 0);
+  p.normalize();
 }
 
 /**

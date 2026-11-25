@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { activityColor, type ActivityScale } from "./activity";
-import { currentColor, currentRampColor, donorCredit, donorName, type CurrentScale } from "./current";
+import { currentColor, currentRampColor, donorCredit, modelPhrase, type CurrentScale } from "./current";
+import type { OceanModel } from "./track";
 import { LENGTH_FULL_M_S } from "./currentArrows";
 import { elevationColor, trackDepthColor, type DepthScale } from "./dem";
 
@@ -57,7 +58,7 @@ const ARROW_KEY_MAX = 3.1;
 const ARROW_TICKS = [0.02, 0.1, 0.5, 3.1];
 
 /** The current arrows' key: the standard currents ramp on its log speed scale, both tables (by seafloor). */
-function ArrowKey({ donor }: { donor: string | null }) {
+function ArrowKey({ model, tilt }: { model: OceanModel; tilt: number | null }) {
   const at = (f: number) => ARROW_KEY_MIN * (ARROW_KEY_MAX / ARROW_KEY_MIN) ** f;
   const bar = (table: "light" | "dark") =>
     `linear-gradient(to right, ${Array.from({ length: 13 }, (_, k) => `${css(currentRampColor(at(k / 12), table))} ${((k / 12) * 100).toFixed(1)}%`).join(", ")})`;
@@ -66,7 +67,8 @@ function ArrowKey({ donor }: { donor: string | null }) {
     <div>
       <p className="mb-0.5">Current arrows (m/s)</p>
       <p className="-mt-0.5 mb-0.5 opacity-80">
-        {donorName(donor)} model; head on the track, tail upstream; full length at {LENGTH_FULL_M_S}
+        {modelPhrase(model)}; head on the track, tail upstream; full length at {LENGTH_FULL_M_S}
+        {tilt != null && `; tilted by the vertical current, x${tilt} like the depth`}
       </p>
       <div className="h-1 rounded-t-sm" title="over shallow seafloor" style={{ background: bar("dark") }} />
       <div className="h-1 rounded-b-sm" title="over deep seafloor" style={{ background: bar("light") }} />
@@ -95,6 +97,7 @@ export function Legend({
   activity,
   current,
   arrows,
+  arrowTilt = null,
   species,
 }: {
   depth?: DepthScale | null;
@@ -102,6 +105,8 @@ export function Legend({
   current?: CurrentScale | null;
   /** The current arrows are drawn (the current's scale, for the model's name). */
   arrows?: CurrentScale | null;
+  /** The arrows tilt with the vertical current: the scene's vertical exaggeration, else null. */
+  arrowTilt?: number | null;
   species?: string;
 }) {
   return (
@@ -129,13 +134,13 @@ export function Legend({
       {current && (
         <ColorBar
           label="Ocean current (m/s)"
-          note={`${donorName(current.donor)} model, mean per ${Math.round(current.stretch_s)} s; gray: no value`}
+          note={`${modelPhrase(current.model)}, mean per ${Math.round(current.stretch_s)} s; gray: no value`}
           max={current.max}
           color={(v) => currentColor(v, current.max)}
           ticks={current.ticks}
         />
       )}
-      {arrows && <ArrowKey donor={arrows.donor} />}
+      {arrows && <ArrowKey model={arrows.model} tilt={arrowTilt} />}
     </div>
   );
 }
@@ -146,7 +151,7 @@ const ATTRIBUTION = "Topobathymetry: GEBCO 2025, GMRT (CC BY 4.0), NOAA BlueTopo
  * The data credits behind a small (i), for the map and the 3D view: the terrain, and the ocean model of every shown
  * track with a current correction (`donors`, as the bundles name them).
  */
-export function Credits({ donors = [] }: { donors?: (string | null | undefined)[] }) {
+export function Credits({ donors = [] }: { donors?: (OceanModel | string | null | undefined)[] }) {
   const [open, setOpen] = useState(false);
   const ocean = [...new Set(donors.map(donorCredit).filter((c): c is string => c != null))];
   return (

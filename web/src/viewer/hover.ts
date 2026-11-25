@@ -4,7 +4,7 @@
  * 1 Hz sample nearest the pointer along the segment it hit.
  */
 import * as THREE from "three";
-import { donorName, upText } from "./current";
+import { modelPhrase, upText } from "./current";
 import type { CurrentArrow } from "./currentArrows";
 import type { Dem } from "./dem";
 import { accelDigits, accelUnit, fmt, readoutAt } from "./readout";
@@ -124,8 +124,9 @@ export function arrowLines(track: Track, a: CurrentArrow, stepM: number): string
   const out = [
     `current, mean over ${along} of track`,
     `${utc(track, a.from)} UTC, over ${duration(timeOf(track, a.to) - timeOf(track, a.from))}`,
-    `${fmt(a.speed, 2)} m/s toward ${fmt(a.toward, 0)} deg (${track.current?.donor ? `${donorName(track.current.donor)} model` : "model"})`,
+    `${fmt(a.speed, 2)} m/s toward ${fmt(a.toward, 0)} deg (${track.current?.model.id || track.current?.model.label ? modelPhrase(track.current.model) : "model"})`,
   ];
+  if (track.current?.up && a.up !== 0) out.push(`vertical ${upText(a.up)} (mean)`);
   if (a.missingShare > 0) out.push(`no model value for ${Math.round(a.missingShare * 100)}% of it`);
   return out;
 }

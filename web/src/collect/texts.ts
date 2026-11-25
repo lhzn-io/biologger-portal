@@ -1,7 +1,7 @@
 /** Prompt text for each collectable view, built from the same values the view renders. */
 import { duration, utc } from "../lib/format";
 import type { ActivityScale } from "../viewer/activity";
-import { donorName, type CurrentScale } from "../viewer/current";
+import { donorName, modelPhrase, type CurrentScale } from "../viewer/current";
 import type { DeploymentDetail, Matrix, ValidationRun } from "../lib/types";
 import type { ChartSeries } from "../viewer/Charts";
 import type { DepthScale, Dem } from "../viewer/dem";
@@ -106,7 +106,7 @@ export function readoutText(track: Track, dem: Dem | null, cursor: number): stri
       r.current == null
         ? "no current correction in this track"
         : Number.isFinite(r.current.speed_m_s)
-          ? `${fmt(r.current.speed_m_s, 2)} m/s toward ${fmt(r.current.toward_deg, 0)} deg from ${donorName(track.current?.donor ?? null)}`
+          ? `${fmt(r.current.speed_m_s, 2)} m/s toward ${fmt(r.current.toward_deg, 0)} deg from ${donorName(track.current?.model)}`
           : "no model value here (still water used)",
     ],
     ...(r.current?.up_m_s != null
@@ -147,7 +147,7 @@ export function mapText(
         (activity
           ? `track by ODBA averaged over each drawn stretch of about ${Math.round(activity.stretch_s)} s, pale yellow at 0 through red-orange to dark violet at ${activity.max} ${activity.unit} and above (0 to this track's 98th percentile, rounded up)`
           : current
-            ? `track by the speed of the ${donorName(current.donor)} model current the track was corrected with, averaged over each drawn stretch of about ${Math.round(current.stretch_s)} s, pale green at 0 to dark green at ${current.max} m/s and above (0 to this track's 98th percentile, rounded up); gray where the model had no value`
+            ? `track by the speed of the ${modelPhrase(current.model)} current the track was corrected with, averaged over each drawn stretch of about ${Math.round(current.stretch_s)} s, pale green at 0 to dark green at ${current.max} m/s and above (0 to this track's 98th percentile, rounded up); gray where the model had no value`
             : `track by the animal's depth, pale yellow at the surface to magenta at ${depth.max} m (a scale fitted to ${span}, rounded up)`),
     ],
   ]);

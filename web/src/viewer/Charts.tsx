@@ -8,7 +8,7 @@ import { CollectButton, useCollectItem } from "../collect/collect";
 import { GuideLink } from "../components/GuideLink";
 import { lines } from "../collect/prompt";
 import { chartText } from "../collect/texts";
-import { currentRampColor, donorName } from "./current";
+import { currentRampColor, donorName, modelPhrase } from "./current";
 import { timeArrows } from "./currentArrows";
 import { elevationAt, type Dem } from "./dem";
 import { postureByDepth, quantile, UPRIGHT_DEG, wrap180, type SideStats } from "./posture";
@@ -353,7 +353,7 @@ function currentSeries(track: Track, idx: number[], xs: number[]): ChartSeries |
   });
   const speeds = Array.from(c.speed).filter(Number.isFinite).sort((a, b) => a - b);
   const missingShare = c.missing.reduce((s, v) => s + (v ? 1 : 0), 0) / Math.max(1, n);
-  const model = donorName(c.donor);
+  const model = donorName(c.model);
   const ms = (v: number) => `${v.toFixed(2)} m/s`;
   // Where the water flows, hour by hour, in the standard currents colors (the chart thins them to fit its width):
   // the table whose weak end contrasts with the page, the dark twin on a light page and the light table on a dark one.
@@ -383,9 +383,10 @@ function currentSeries(track: Track, idx: number[], xs: number[]): ChartSeries |
       ? `${model}: median ${ms(quantile(speeds, 0.5))}, 95th percentile ${ms(quantile(speeds, 0.95))}`
       : `${model}: no values`,
     caption:
-      `The ${model} model current the track was corrected with, at the animal's depth; a model, not a measurement. ` +
+      `The ${modelPhrase(c.model)} current the track was corrected with, at the animal's depth; a model, not a measurement. ` +
       `Arrows: where the water flows, hourly, north up. ` +
-      `Shaded: no model value (${(100 * missingShare).toFixed(1)} % of the record), still water used.`,
+      `Shaded: no model value (${(100 * missingShare).toFixed(1)} % of the record), still water used.` +
+      (c.model.caveat ? ` Model note: ${c.model.caveat}` : ""),
     doc: "currents.html#the-current-on-a-track-page",
     notes: [
       ["ocean_model", model],
@@ -430,7 +431,9 @@ function chartSeries(track: Track, dem: Dem | null): ChartSeries[] {
 function verticalCurrentSeries(track: Track, idx: number[], xs: number[]): ChartSeries | null {
   const up = track.current?.up;
   if (!up || !up.some(Number.isFinite)) return null;
-  const model = donorName(track.current!.donor);
+  const m = track.current!.model;
+  const model = donorName(m);
+  const computed = m.wSource === "continuity";
   const cms = (v: number) => `${v.toFixed(2)} cm/s`;
   const mags = Array.from(up, (v) => Math.abs(v) * 100).filter(Number.isFinite).sort((a, b) => a - b);
   return {
@@ -443,12 +446,19 @@ function verticalCurrentSeries(track: Track, idx: number[], xs: number[]): Chart
     minPad: 0.05,
     summary: `${model}: median size ${cms(quantile(mags, 0.5))}, 95th percentile ${cms(quantile(mags, 0.95))}`,
     caption:
-      `The ${model} model's vertical velocity at the animal's depth, up positive; a model, not a measurement. ` +
+      (computed
+        ? `Computed from the ${modelPhrase(m)}'s horizontal current by continuity (the model gives no vertical velocity), at the animal's depth, up positive. `
+        : `The ${modelPhrase(m)}'s vertical velocity at the animal's depth, up positive; a model, not a measurement. `) +
       `Not applied to the track: the depth is measured. For scale, 1 cm/s is 36 m an hour.`,
     doc: "currents.html#the-current-on-a-track-page",
     notes: [
       ["ocean_model", model],
-      ["variable", "the model's upward velocity in z (NECOFS FVCOM ww), at the animal's depth"],
+      [
+        "variable",
+        computed
+          ? "upward velocity computed from the model's horizontal current by continuity, at the animal's depth"
+          : "the model's own upward velocity in z, at the animal's depth",
+      ],
       ["applied", "no; the track's depth comes from the pressure sensor"],
     ],
   };

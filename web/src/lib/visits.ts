@@ -19,6 +19,7 @@ export type VisitAction =
   | "inspector"
   | "current_arrows"
   | "hover_readout"
+  | "arrow_tilt"
   | "collect_add"
   | "collect_copy_image"
   | "collect_copy_prompt"

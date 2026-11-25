@@ -82,6 +82,7 @@ describe("hover text", () => {
       "current, mean over 250 m of track",
       "2022-08-13 02:37:00 UTC, over 59 s",
       "0.10 m/s toward 90 deg (model)",
+      "vertical 0.12 cm/s down (mean)",
       "no model value for 50% of it",
     ]);
     expect([duration(20), duration(900), duration(9000)]).toEqual(["20 s", "15 min", "2.5 h"]);

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { alongTrack, arrowLength, arrowStep, LENGTH_FLOOR, LENGTH_FULL_M_S, MAX_ARROWS, timeArrows, trackArrows } from "./currentArrows";
-import { onLine } from "./arrowLayer";
+import * as THREE from "three";
+import { arrowFrame, onLine } from "./arrowLayer";
 import { parseTrack, type TrackManifest } from "./track";
 
 const BASE = ["t", "north_m", "east_m", "depth_m", "heading_deg", "pitch_deg", "roll_deg", "vedba"];
@@ -9,6 +10,7 @@ interface Cols {
   east: (i: number) => number;
   north: (i: number) => number;
   missing?: (i: number) => number;
+  up?: (i: number) => number;
   t?: (i: number) => number;
   /** The animal's own position (m from the start fix); 1 m/s north by default. */
   posNorth?: (i: number) => number;
@@ -20,6 +22,7 @@ function track(n: number, c: Cols) {
     current_east_m_s: c.east,
     current_north_m_s: c.north,
     ...(c.missing ? { current_missing: c.missing } : {}),
+    ...(c.up ? { current_up_m_s: c.up } : {}),
   };
   const names = [...BASE, ...Object.keys(cols)];
   const data = new Float32Array(names.length * n);
@@ -39,6 +42,39 @@ function track(n: number, c: Cols) {
   } as TrackManifest;
   return parseTrack(manifest, data.buffer);
 }
+
+describe("tilted arrows", () => {
+  it("average the vertical current over the stretch, skipping samples without one", () => {
+    const tr = track(1200, { east: () => 0.2, north: () => 0, up: (i) => (i < 600 ? 0.002 : i % 2 ? NaN : -0.004) });
+    const [a, b] = timeArrows(tr, 600);
+    expect(a!.up).toBeCloseTo(0.002, 6);
+    expect(b!.up).toBeCloseTo(-0.004, 6);
+    expect(timeArrows(track(600, { east: () => 0.2, north: () => 0 }), 600)[0]!.up).toBe(0);
+  });
+
+  it("tilt the shaft by the vertical current times the exaggeration, and keep the barbs across it", () => {
+    const d = new THREE.Vector3();
+    const p = new THREE.Vector3();
+    // 0.1 m/s east, 0.005 m/s up, at 5x: the shaft rises atan(0.025 / 0.1) above the horizontal.
+    arrowFrame(0.1, 0, 0.005, 5, d, p);
+    expect(Math.atan2(d.y, Math.hypot(d.x, d.z))).toBeCloseTo(Math.atan(0.25), 9);
+    expect(d.x).toBeGreaterThan(0);
+    expect(d.length()).toBeCloseTo(1, 9);
+    expect(p.y).toBe(0);
+    expect(p.dot(d)).toBeCloseTo(0, 9);
+    // Sinking water tilts down; no vertical current (or tilt off, which passes 0) is flat, north is -z.
+    arrowFrame(0.1, 0, -0.005, 5, d, p);
+    expect(d.y).toBeLessThan(0);
+    arrowFrame(0, 0.3, 0, 5, d, p);
+    expect([d.x, d.y, d.z]).toEqual([0, 0, -1]);
+    // Straight up (no horizontal flow): any horizontal barb direction, still unit length.
+    arrowFrame(0, 0, 0.01, 5, d, p);
+    expect(d.y).toBeCloseTo(1, 9);
+    expect(p.length()).toBeCloseTo(1, 9);
+    arrowFrame(0, 0, 0, 5, d, p);
+    expect(d.length()).toBeCloseTo(1, 9);
+  });
+});
 
 describe("current arrows", () => {
   it("spreads the 3D arrows evenly along the track, at most MAX_ARROWS", () => {

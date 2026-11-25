@@ -37,6 +37,19 @@ describe("resolveRun", () => {
   it("follows a retired id to its successor and says so", () => {
     expect(resolveRun(tracks, "A", "20261118-162227_pin_cur")).toEqual({ row: tracks[2], replaced: true });
   });
+  it("opens the run renamed with its model for a link to an old name, and says so", () => {
+    const renamed = [
+      row("C", "20261125-010000_pin_cur_necofs", 1),
+      row("C", "20261125-020000_pin_cur_doppio", 1),
+      row("D", "20261125-030000_pin_cur_hycom"),
+    ];
+    expect(resolveRun(renamed, "C", "pin_cur")).toEqual({ row: renamed[0], replaced: true });
+    expect(resolveRun(renamed, "C", "20261119-001434_pin_cur")?.row.run_id).toBe("20261125-010000_pin_cur_necofs");
+    expect(resolveRun(renamed, "D", "pin_cur")?.row.run_id).toBe("20261125-030000_pin_cur_hycom");
+    expect(resolveRun(renamed, "C", "dr_cur")).toBeNull();
+    // While an old-named run is still there, the old name opens it.
+    expect(resolveRun([...renamed, row("C", "20261119-001434_pin_cur", 1)], "C", "pin_cur")?.row.run_id).toBe("20261119-001434_pin_cur");
+  });
   it("keeps deployments apart", () => {
     expect(resolveRun(tracks, "B", "pin_cur")?.row.deployment_id).toBe("B");
     expect(resolveRun(tracks, "B", "dr")).toBeNull();

@@ -108,6 +108,13 @@ describe("inspector vectors", () => {
     expect(mPerS(north.ground)).toBe("1.02 m/s");
   });
 
+  it("shows the model's vertical current on the current arrow, but not in the ground velocity", () => {
+    const tr = track({ heading: [90, 90] }, { ...extra(2, 1, 0, 0.2), current_up_m_s: [0.01, 0.01] });
+    const s = inspectorSample(tr, 0, "north");
+    near(s.current!, 0, 0.01, -0.2);
+    near(s.ground!, 1, 0, -0.2);
+  });
+
   it("draws heading up: through the water straight ahead, the current turned with the animal", () => {
     const tr = track({ heading: [90, 90] }, extra(2, 1, 0, 0.2));
     const s = inspectorSample(tr, 0, "heading");

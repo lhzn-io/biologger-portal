@@ -111,7 +111,8 @@ export interface InspectorSample {
   body: THREE.Quaternion;
   /** Through-water velocity (m/s, scene axes, drawn frame); null when the bundle has no through-water speed. */
   water: THREE.Vector3 | null;
-  /** The applied current; null when the track had none, or the model had no value here (still water was used). */
+  /** The model current at the animal: the horizontal part the track applied, plus the model's vertical current
+   * where it has one (shown, not applied); null when the track had none, or the model had no value here. */
   current: THREE.Vector3 | null;
   /** Over the ground: their sum; null without a through-water speed. */
   ground: THREE.Vector3 | null;
@@ -186,15 +187,21 @@ export function inspectorSample(track: Track, at: number, frame: InspectorFrame)
     ? toScene(speed * Math.sin(level * D2R), speed * Math.cos(level * D2R), 0).applyQuaternion(toFrame)
     : null;
   let current: THREE.Vector3 | null = null;
+  let applied: THREE.Vector3 | null = null;
   const c = track.current;
   if (c) {
     const [i, j, f] = splitPosition(at, track.count);
     const missing = c.missing[i] || (f > 0 && c.missing[j]);
     const e = valueAt(c.east, at);
     const n = valueAt(c.north, at);
-    if (!missing && Number.isFinite(e) && Number.isFinite(n)) current = toScene(e, n, 0).applyQuaternion(toFrame);
+    const w = c.up ? valueAt(c.up, at) : NaN;
+    if (!missing && Number.isFinite(e) && Number.isFinite(n)) {
+      applied = toScene(e, n, 0).applyQuaternion(toFrame);
+      current = toScene(e, n, Number.isFinite(w) ? w : 0).applyQuaternion(toFrame);
+    }
   }
-  const ground = water ? water.clone().add(current ?? new THREE.Vector3()) : null;
+  // Over the ground as dead reckoning integrated it: horizontal, so only the current's horizontal part.
+  const ground = water ? water.clone().add(applied ?? new THREE.Vector3()) : null;
   const a = track.accel;
   const dynamic = a ? accelAt(a.dynamic, at, body) : null;
   const gravity = a ? accelAt(a.static, at, body) : null;

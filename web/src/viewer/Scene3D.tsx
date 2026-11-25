@@ -120,6 +120,7 @@ export default function Scene3D({
   inspector,
   onSeek,
   currentArrows = false,
+  arrowTilt = true,
   hover = true,
 }: {
   track: Track;
@@ -154,6 +155,8 @@ export default function Scene3D({
   onSeek?: (at: number) => void;
   /** Draw arrows along the track where the water flows (tracks with a current correction only). */
   currentArrows?: boolean;
+  /** Tilt the arrows with the model's vertical current, exaggerated like the depth. */
+  arrowTilt?: boolean;
   /** Show a readout of the current arrow or track sample under the pointer. */
   hover?: boolean;
 }) {
@@ -188,6 +191,10 @@ export default function Scene3D({
   useEffect(() => {
     hoverOn.current = hover;
   }, [hover]);
+  const tiltOn = useRef(arrowTilt);
+  useEffect(() => {
+    tiltOn.current = arrowTilt;
+  }, [arrowTilt]);
 
   // Build the scene once per track and DEM.
   useEffect(() => {
@@ -566,7 +573,7 @@ export default function Scene3D({
       for (const o of st.others) o.dot.scale.setScalar((DOT_PX / 2) * perPixel(camera.position.distanceTo(o.dot.position)));
       if (st.arrows) {
         st.arrows.visible = !!arrowsOn.current;
-        if (arrowsOn.current) st.arrows.update(st.exag, perPixel(camera.position.distanceTo(nav.controls.getTarget(lookAt))));
+        if (arrowsOn.current) st.arrows.update(st.exag, perPixel(camera.position.distanceTo(nav.controls.getTarget(lookAt))), tiltOn.current);
       }
       renderer.render(scene, camera);
       if (pointer && hoverOn.current) showHover(pointer[0], pointer[1]);

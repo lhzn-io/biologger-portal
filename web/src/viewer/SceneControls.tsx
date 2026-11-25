@@ -46,6 +46,9 @@ export default function SceneControls({
   onInspectorScale,
   arrows,
   onArrows,
+  tilt,
+  onTilt,
+  hasVertical,
   hover,
   onHover,
 }: {
@@ -85,6 +88,11 @@ export default function SceneControls({
   /** Current arrows along the track are shown. */
   arrows: boolean;
   onArrows: (on: boolean) => void;
+  /** The arrows tilt with the vertical current. */
+  tilt: boolean;
+  onTilt: (on: boolean) => void;
+  /** The track's model gives a vertical current. */
+  hasVertical: boolean;
   /** The hover readout is shown. */
   hover: boolean;
   onHover: (on: boolean) => void;
@@ -182,6 +190,19 @@ export default function SceneControls({
               <span>
                 Current arrows
                 <span className="block opacity-80">{hasCurrent ? "where the water flows; longer is faster" : "no current correction in this track"}</span>
+              </span>
+            </label>
+            <label className={`ml-5 flex items-start gap-2 ${arrows && hasVertical ? "" : "opacity-50"}`}>
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                disabled={!arrows || !hasVertical}
+                checked={tilt && hasVertical}
+                onChange={(e) => onTilt(e.target.checked)}
+              />
+              <span>
+                Tilt with the vertical current
+                <span className="block opacity-80">{hasVertical ? "rising or sinking water, exaggerated like the depth" : "this model gives no vertical current"}</span>
               </span>
             </label>
             <label className="flex items-start gap-2">

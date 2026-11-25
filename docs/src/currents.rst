@@ -61,7 +61,8 @@ When a track was exported with the current correction, its track page adds:
   depth, in cm/s because it is far smaller than the horizontal current: along RED001 about
   0.1 cm/s at the median, against about 7 cm/s horizontally; over the shelf break the model
   reaches a few cm/s. It is shown, not applied: the track's depth comes from the pressure
-  sensor. The current arrows stay horizontal. (``verticalCurrentSeries`` in
+  sensor. The current arrows tilt with it, exaggerated like the depth (see the guide's "Current direction"),
+  and the physics inspector's current arrow includes it. (``verticalCurrentSeries`` in
   :src:`web/src/viewer/Charts.tsx`)
 
 All of these show the model current at the model's resolution, not a measurement. A track without
