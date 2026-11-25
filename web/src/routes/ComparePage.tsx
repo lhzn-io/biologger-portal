@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router";
 import { useQueries } from "@tanstack/react-query";
 import { GuideLink } from "../components/GuideLink";
 import { Button, ErrorNote, Loading, Panel } from "../components/ui";
+import { OceanModelsLink } from "../components/OceanModelsLink";
 import CollectPanel from "../collect/CollectPanel";
 import { lines } from "../collect/prompt";
 import { chartText } from "../collect/texts";
@@ -389,6 +390,7 @@ export default function ComparePage() {
             <span className="font-mono">{exag}x</span>
           </label>
           <span className="font-mono text-xs text-muted">{new Date(timeOf(pt, i) * 1000).toISOString().replace(".000Z", "Z")}</span>
+          <OceanModelsLink timeS={timeOf(pt, i)} lat={pt.lat[i]!} lon={pt.lon[i]!} depthM={pt.depth[i]!} />
           <input
             type="range"
             className="min-w-48 flex-1"

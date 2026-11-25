@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { GuideLink } from "../components/GuideLink";
+import { OceanModelsLink } from "../components/OceanModelsLink";
 import { Button, ErrorNote, Loading, Panel } from "../components/ui";
 import CollectPanel from "../collect/CollectPanel";
 import { mapText, readoutText } from "../collect/texts";
@@ -330,6 +331,7 @@ export default function TrackPage() {
         </dl>
         <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
           {playbar}
+          <OceanModelsLink timeS={timeOf(tr, r.index)} lat={r.lat} lon={r.lon} depthM={r.depth_m} />
           {dem.isLoading && <span className="text-xs text-muted">Loading terrain (up to a minute the first time)...</span>}
           {dem.error && <span className="text-xs text-bad">No terrain: {dem.error.message}</span>}
           {dem.data && (
