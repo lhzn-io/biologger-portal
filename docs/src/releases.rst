@@ -10,7 +10,7 @@ each release is tagged in the repository
 
 .. _v0.4.0:
 
-0.4.0 (unreleased)
+0.4.0 (2026-11-25)
 ------------------
 
 Ocean current
@@ -25,8 +25,24 @@ Ocean current
   ocean current at the animal (cm/s, up positive)", and a line in the readouts. It is shown, not applied: the
   depth comes from the pressure sensor. Along RED001 it is about 0.1 cm/s at the median, against about 7 cm/s
   horizontally. See :doc:`currents`.
-- The data credits (i) on the 3D views now credit the ocean model shown (NECOFS/UMASSD for NECOFS), as well as
-  the terrain.
+- **Arrows tilt with the vertical current**, exaggerated like the depth, so each lies along the water's path as
+  drawn. "Tilt with the vertical current" under Controls turns it off, and the link keeps the choice. The arrow
+  tooltip and the physics inspector's current arrow include the vertical part.
+- **Each track names its ocean model.** A current-corrected track carries its model in its name
+  (``pin_cur_necofs``, ``pin_cur_doppio``), and its charts, captions and data credits name and credit that
+  model. A link to an older name (``pin_cur``, ``dr_cur``) opens that run while it exists, then its NECOFS
+  successor.
+- **How the current is applied**, in the guide: a plain account of the correction's passes, with a figure of
+  RED001 pass by pass. See :doc:`currents` ("How the current enters a track").
+
+Compare page
+^^^^^^^^^^^^
+
+- **Colors by ocean model.** Every track with a given model shares a color (NECOFS salmon, DOPPIO lime, HYCOM
+  orange, any other lemon; lavender without a current), from ColorBrewer's Set3, so two models never share one.
+  Current variants are ordered by model.
+- **Dead reckoning is dashed**, in the 3D view, the distance chart and the legend, and hidden when the page
+  opens; tick it to show it.
 
 Track page
 ^^^^^^^^^^

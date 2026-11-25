@@ -1,6 +1,6 @@
 [project]
 name = "biologger-portal"
-version = "0.3.0"
+version = "0.4.0"
 description = "Dataset hub and track viewer server for WHOI Marine Predators Group biologger deployments"
 license = "Apache-2.0"
 authors = [{ name = "Long Horizon Observatory" }]
