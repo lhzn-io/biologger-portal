@@ -50,6 +50,23 @@ describe("resolveRun", () => {
     // While an old-named run is still there, the old name opens it.
     expect(resolveRun([...renamed, row("C", "20261119-001434_pin_cur", 1)], "C", "pin_cur")?.row.run_id).toBe("20261119-001434_pin_cur");
   });
+  it("opens the reviewed track for a link to a retired post-facto run, and says so", () => {
+    const after = [
+      row("E", "20261119-000903_dr", 1),
+      row("E", "20261119-000913_pin", 1, 1),
+      row("F", "20261120-202256_pin_cur", 1, 1),
+      row("G", "20261119-000903_dr", 1),
+    ];
+    const legacy = "20261113-094223_Swordfish-E-postfacto";
+    expect(resolveRun(after, "E", legacy)).toEqual({ row: after[1], replaced: true });
+    expect(resolveRun(after, "E", "Swordfish-E-postfacto")).toEqual({ row: after[1], replaced: true });
+    expect(resolveRun(after, "F", "20261113-160825_WhaleShark-F-postfacto")?.row.run_id).toBe("20261120-202256_pin_cur");
+    // No reviewed track: nothing to open. Other unknown names are not redirected.
+    expect(resolveRun(after, "G", "Swordfish-G-postfacto")).toBeNull();
+    expect(resolveRun(after, "E", "nonsense")).toBeNull();
+    // While the post-facto run is still there, its link opens it.
+    expect(resolveRun(tracks, "A", "Swordfish-A-postfacto")).toEqual({ row: tracks[0], replaced: false });
+  });
   it("keeps deployments apart", () => {
     expect(resolveRun(tracks, "B", "pin_cur")?.row.deployment_id).toBe("B");
     expect(resolveRun(tracks, "B", "dr")).toBeNull();

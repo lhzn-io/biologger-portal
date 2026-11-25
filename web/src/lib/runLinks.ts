@@ -10,6 +10,10 @@ import type { TrackRow } from "./types";
  * (`pin_cur_necofs`, `pin_cur_hycom`, `pin_cur_doppio`). A link to an old name, once no run
  * of that name is left, opens the run that took over: the model forcingkit picked for those runs, NECOFS on the
  * Northeast Shelf, else HYCOM.
+ *
+ * The first exports (2026-11-13) were named for the tag and ended in `-postfacto`
+ * (`Swordfish-RED001_20220812_19A0564-postfacto`), and carried no pipeline record. Once such a run is retired, a link
+ * to it opens the deployment's reviewed track, which took its place.
  */
 
 const STAMP = /^\d{8}-\d{6}_/;
@@ -19,6 +23,9 @@ const RENAMED: Record<string, string[]> = {
   pin_cur: ["pin_cur_necofs", "pin_cur_hycom"],
   dr_cur: ["dr_cur_necofs", "dr_cur_hycom"],
 };
+
+/** The first exports' names, which end in `-postfacto`. */
+const LEGACY = /-postfacto$/;
 
 /** The run's name: its id without the leading start time (the id itself when it has none). */
 export function runName(runId: string): string {
@@ -49,6 +56,10 @@ export function resolveRun(tracks: TrackRow[], depId: string, param: string): Re
   for (const next of RENAMED[name] ?? []) {
     const found = resolveRun(tracks, depId, next);
     if (found) return { row: found.row, replaced: true };
+  }
+  if (LEGACY.test(name)) {
+    const reviewed = tracks.find((t) => t.deployment_id === depId && t.published);
+    if (reviewed) return { row: reviewed, replaced: true };
   }
   return null;
 }
