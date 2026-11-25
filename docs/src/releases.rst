@@ -8,6 +8,16 @@ viewer, the top right shows the snapshot time instead; hover over it to see the 
 each release is tagged in the repository
 (`releases on GitHub <https://github.com/lhzn-io/biologger-portal/releases>`_).
 
+.. _v0.4.2:
+
+0.4.2 (2026-11-25)
+------------------
+
+- **Ocean models at the cursor.** The track page (under the readout) and the comparison page (beside the
+  time) link to the longhorizon.blue "Ocean models compared" page, which draws NECOFS and DOPPIO side by side.
+  The link opens at the cursor's hour, at the page's depth level nearest the animal's, around the animal's
+  position to within about 10 km. See :doc:`viewer` ("Ocean models here").
+
 .. _v0.4.1:
 
 0.4.1 (2026-11-25)
