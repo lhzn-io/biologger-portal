@@ -18,7 +18,7 @@ describe("oceanModelsHref", () => {
 
   it("rounds to the hour and centers a box on the position to 0.1 degree", () => {
     expect(oceanModelsHref(t, 10.04, -20.06, 47)).toBe(
-      "https://longhorizon.blue/northeast-shelf/?from=2025-07-23&t=2025-07-23T19Z&bbox=-20.5,9.7,-19.7,10.3&depth=50",
+      "https://longhorizon.blue/northeast-shelf/ocean-models/?from=2025-07-23&t=2025-07-23T19Z&bbox=-20.5,9.7,-19.7,10.3&depth=50",
     );
   });
 

@@ -8,7 +8,7 @@
  * animal only to within about 10 km.
  */
 
-export const OCEAN_MODELS_URL = "https://longhorizon.blue/northeast-shelf/";
+export const OCEAN_MODELS_URL = "https://longhorizon.blue/northeast-shelf/ocean-models/";
 
 /** The depth levels the page offers, in meters. */
 export const OCEAN_MODEL_DEPTHS = [0, 10, 25, 50, 100, 200, 500] as const;
