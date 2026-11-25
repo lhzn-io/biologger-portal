@@ -50,11 +50,14 @@ export interface OtherTrack {
   key: string;
   track: Track;
   color: string;
+  /** Draw the line dashed (dead reckoning on the compare page). */
+  dashed?: boolean;
 }
 
 interface OtherState {
   track: Track;
   line: Line2;
+  dashed: boolean;
   idx: number[];
   dot: THREE.Group;
 }
@@ -168,7 +171,7 @@ export default function Scene3D({
   useEffect(() => {
     othersRef.current = others;
   }, [others]);
-  const othersKey = (others ?? []).map((o) => `${o.key}:${o.color}`).join("|");
+  const othersKey = (others ?? []).map((o) => `${o.key}:${o.color}:${o.dashed ? 1 : 0}`).join("|");
   const chaseOn = useRef(chase);
   const followOn = useRef(follow);
   useEffect(() => {
@@ -318,8 +321,17 @@ export default function Scene3D({
       const geo = new LineGeometry();
       geo.setPositions(linePositions(o.track, idx, exag));
       const mat = new LineMaterial({ color: new THREE.Color(o.color).getHex(), linewidth: 1.6, worldUnits: false });
-      otherMats.push(mat);
       const l = new Line2(geo, mat);
+      if (o.dashed) {
+        // Dashes in scene units, scaled to the track's extent so a whole track shows a few hundred of them.
+        geo.computeBoundingSphere();
+        const r = geo.boundingSphere?.radius ?? 1;
+        mat.dashed = true;
+        mat.dashSize = r / 60;
+        mat.gapSize = r / 100;
+        l.computeLineDistances();
+      }
+      otherMats.push(mat);
       scene.add(l);
       // Drawn over the terrain and lines, with a dark outline, so it shows wherever the track runs.
       const dot = new THREE.Group();
@@ -329,7 +341,7 @@ export default function Scene3D({
       fill.renderOrder = 11;
       dot.add(ring, fill);
       scene.add(dot);
-      return { track: o.track, line: l, idx, dot };
+      return { track: o.track, line: l, dashed: !!o.dashed, idx, dot };
     });
 
     // The animal, built at unit length with the head along -z (north at heading 0) and the back along +y, and
@@ -669,7 +681,10 @@ export default function Scene3D({
       st.terrain.geometry.computeBoundingBox();
     }
     (st.line.geometry as LineGeometry).setPositions(linePositions(track, st.lineIdx, exaggeration));
-    for (const o of st.others) (o.line.geometry as LineGeometry).setPositions(linePositions(o.track, o.idx, exaggeration));
+    for (const o of st.others) {
+      (o.line.geometry as LineGeometry).setPositions(linePositions(o.track, o.idx, exaggeration));
+      if (o.dashed) o.line.computeLineDistances();
+    }
     st.nav.rescaleVertical(prev, exaggeration, -median(track.depth) * prev * S);
     placeMarker(st, track, dem, cursor);
     // eslint-disable-next-line react-hooks/exhaustive-deps

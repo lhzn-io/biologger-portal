@@ -75,9 +75,11 @@ A deployment with more than one track links to ``/deployments/<id>/compare`` ("C
 tracks"). The page has three parts (:src:`web/src/routes/ComparePage.tsx`, with the numbers
 from :src:`web/src/viewer/compare.ts`).
 
-**The table**, one row per track. Tracks with a pipeline record are shown. Older exports,
-labeled "earlier export, no pipeline record", are listed but hidden until you tick them. When no
-track has a pipeline record, all tracks are shown. Click a row to put the animal on that track.
+**The table**, one row per track. Tracks with a pipeline record are shown, except dead
+reckoning: unpinned, it drifts kilometers from the fixes, so it is listed but hidden until you
+tick it. Older exports, labeled "earlier export, no pipeline record", are hidden the same way.
+When every recorded track is dead-reckoned, those are shown; when no track has a pipeline record,
+all tracks are. Click a row to put the animal on that track.
 
 .. list-table::
    :header-rows: 1
@@ -108,12 +110,18 @@ track has a pipeline record, all tracks are shown. Click a row to put the animal
 
 **The 3D view.** The selected track carries the animal. Every other visible track is drawn in
 its own color, with an outlined dot at the same moment, so the gap between reconstructions shows
-as they play. The colors are:
+as they play. A track's color is the ocean model that moved it, and its line style is how it was
+placed, so one model's tracks share a color and two models never do:
 
-- Dead-reckoned tracks: deep pink with the current, light pink without.
-- Pinned tracks: orange with the current, pale amber without.
-- Fix-to-fix interpolations: green.
-- Older exports: violet or gray.
+- No current: lavender.
+- NECOFS: salmon. DOPPIO: lime. HYCOM: orange. Any other model: lemon.
+- Dead-reckoned tracks are dashed (in the 3D view, the distance chart and the legends); pinned
+  and fix-to-fix tracks are solid.
+- Older exports: grays.
+
+The colors come from ColorBrewer's Set3, less its teal, blue and gray: light enough to stand out
+on the shaded terrain and the dark panels, and none of them blue or cyan
+(``variantColor`` in :src:`web/src/viewer/compare.ts`).
 
 Controls for play, speed and vertical exaggeration, and a time slider, sit under the view.
 

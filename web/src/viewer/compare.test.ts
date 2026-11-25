@@ -9,7 +9,11 @@ import {
   metricValue,
   placementSummary,
   separation,
+  defaultShown,
+  MODEL_COLORS,
+  NO_CURRENT_COLOR,
   variantColor,
+  variantDashed,
 } from "./compare";
 import type { Dem } from "./dem";
 import { parseTrack, type PipelineStep, type TrackManifest } from "./track";
@@ -54,7 +58,35 @@ describe("track comparison", () => {
     expect([old, pinCur, dr, pin, drCur].sort((a, b) => a.order - b.order).map((v) => v.label)).toEqual([
       dr.label, drCur.label, pin.label, pinCur.label, old.label,
     ]);
-    expect(new Set([dr, drCur, pin, pinCur, old].map((v) => variantColor(v))).size).toBe(5);
+    // Color is the model, the dash the placement: every pair still differs in one or the other.
+    const look = (v: typeof dr) => `${variantColor(v)}${variantDashed(v) ? " dashed" : ""}`;
+    expect(new Set([dr, drCur, pin, pinCur, old].map(look)).size).toBe(5);
+    expect(variantColor(drCur)).toBe(variantColor(pinCur));
+    expect(variantColor(dr)).toBe(NO_CURRENT_COLOR);
+    expect([dr, drCur].every(variantDashed) && ![pin, pinCur, old].some(variantDashed)).toBe(true);
+  });
+
+  it("gives each model its own color", () => {
+    const pinned = (donor: string) =>
+      describeVariant(track(3, { model: "fix_pinned", pipeline: [step("current_correction", "forcingkit", { donor_used: donor }), step("placement", "fix_pinned")] }));
+    const colors = ["necofs", "doppio", "hycom", "somewhere"].map((d) => variantColor(pinned(d)));
+    expect(colors).toEqual([...MODEL_COLORS]);
+    expect(colors).not.toContain(NO_CURRENT_COLOR);
+  });
+
+  it("opens with dead reckoning and older exports hidden", () => {
+    const at = (id: string, pipeline: ReturnType<typeof step>[] | undefined, model = "dead_reckoning") => ({
+      id,
+      info: describeVariant(track(3, { model, ...(pipeline ? { pipeline } : {}) })),
+    });
+    const dr = at("dr", [step("dead_reckoning", "constant")]);
+    const drCur = at("dr_cur", [step("dead_reckoning", "constant"), CURRENT]);
+    const pin = at("pin", [step("placement", "fix_pinned")], "fix_pinned");
+    const pinCur = at("pin_cur", [CURRENT, step("placement", "fix_pinned")], "fix_pinned");
+    const old = at("old", undefined, "fix_pinned");
+    expect([...defaultShown([dr, drCur, pin, pinCur, old])]).toEqual(["pin", "pin_cur"]);
+    expect([...defaultShown([dr, drCur, old])]).toEqual(["dr", "dr_cur"]);
+    expect([...defaultShown([old])]).toEqual(["old"]);
   });
 
   it("orders current variants by model, and labels a local model by its own name", () => {

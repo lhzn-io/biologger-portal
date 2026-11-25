@@ -87,15 +87,41 @@ export function convergenceNote(c: CurrentConvergence | null): string {
 }
 
 /**
- * Colors by what a track is: pinks for dead reckoning, ambers for pinned, the lighter of each without the current
- * and the stronger with it; older exports in violet and gray. None is blue, so lines stand out on the terrain.
+ * Track colors from ColorBrewer's Set3 (Brewer, colorbrewer2.org), less its teal, blue and gray, which sink into
+ * the pale-blue terrain or read as white. By ocean model, in modelRank's order: NECOFS salmon, DOPPIO lime,
+ * HYCOM orange, then lemon for any other. Set3's pink (#fccde5), purple (#bc80bd), mint (#ccebc5) and pale
+ * yellow (#ffffb3) remain for more models.
+ */
+export const MODEL_COLORS = ["#fb8072", "#b3de69", "#fdb462", "#ffed6f"] as const;
+/** A track without a current correction: Set3's lavender. */
+export const NO_CURRENT_COLOR = "#bebada";
+/** Older exports, with no pipeline record: grays. */
+const OLDER_COLORS = ["#d9d9d9", "#b3b3b3", "#9a9a9a"];
+
+/**
+ * A track's color says which ocean model moved it (slate for none); its line style says how it was placed
+ * (`variantDashed`). So a model's dead-reckoned and pinned tracks share one color, and two models never do.
  */
 export function variantColor(v: VariantInfo, k = 0): string {
-  const withCurrent = v.current != null;
-  if (v.current === undefined) return ["#a78bfa", "#cbd5e1", "#c4b5fd"][k % 3]!;
-  if (v.placement === "dead_reckoning") return withCurrent ? "#ec4899" : "#f9a8d4";
-  if (v.placement === "fix_pinned") return withCurrent ? "#f97316" : "#fde68a";
-  return withCurrent ? "#22c55e" : "#bbf7d0";
+  if (v.current === undefined) return OLDER_COLORS[k % OLDER_COLORS.length]!;
+  if (v.current === null) return NO_CURRENT_COLOR;
+  return MODEL_COLORS[Math.min(modelRank(v.current), MODEL_COLORS.length - 1)]!;
+}
+
+/** Dead-reckoned tracks are drawn dashed: unpinned, they drift away from the fixes. */
+export function variantDashed(v: VariantInfo): boolean {
+  return v.placement === "dead_reckoning";
+}
+
+/**
+ * The tracks shown when the compare page opens: those with a pipeline record except dead reckoning (the
+ * comparison set; dead reckoning and older exports wait to be ticked). With nothing else, the dead-reckoned ones;
+ * with no pipeline record at all, every track.
+ */
+export function defaultShown<T extends { id: string; info: VariantInfo }>(list: T[]): Set<string> {
+  const recorded = list.filter((v) => v.info.current !== undefined);
+  const placed = recorded.filter((v) => !variantDashed(v.info));
+  return new Set((placed.length ? placed : recorded.length ? recorded : list).map((v) => v.id));
 }
 
 /** A metric the exporter wrote (biologger-sim core/provenance.py), or null. */

@@ -21,7 +21,9 @@ import {
   placementSummary,
   separation,
   seafloorUnder,
+  defaultShown,
   variantColor,
+  variantDashed,
   type VariantInfo,
 } from "../viewer/compare";
 import { loadDem, type Dem } from "../viewer/dem";
@@ -39,6 +41,14 @@ interface Variant {
   dem: Dem | null;
   info: VariantInfo;
   color: string;
+  /** Dead reckoning, drawn dashed. */
+  dashed: boolean;
+}
+
+/** A legend swatch in the track's color, dashed for dead reckoning. */
+function Swatch({ v, className }: { v: Variant; className: string }) {
+  const background = v.dashed ? `repeating-linear-gradient(90deg, ${v.color} 0 5px, transparent 5px 8px)` : v.color;
+  return <span className={`inline-block h-1 align-middle ${className}`} style={{ background }} />;
 }
 
 const km = (m: number | null | undefined, digits = 1) => (m == null || !Number.isFinite(m) ? "--" : (m / 1000).toFixed(digits));
@@ -72,18 +82,21 @@ export default function ComparePage() {
     });
     list.sort((a, b) => a.info.order - b.info.order || a.row.run_id.localeCompare(b.row.run_id));
     let older = 0;
-    return list.map((v) => ({ ...v, color: variantColor(v.info, v.info.current === undefined ? older++ : 0) }));
+    return list.map((v) => ({
+      ...v,
+      color: variantColor(v.info, v.info.current === undefined ? older++ : 0),
+      dashed: variantDashed(v.info),
+    }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded, rows, dataKey]);
 
-  // Shown: the tracks with a pipeline record (the comparison set), or every track when none has one.
+  // Shown at first: the placed tracks with a pipeline record; dead reckoning and older exports wait to be ticked.
   const [shown, setShown] = useState<Set<string> | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
-  const visible = useMemo(() => {
-    if (shown) return shown;
-    const recorded = variants.filter((v) => v.info.current !== undefined).map((v) => v.row.run_id);
-    return new Set(recorded.length ? recorded : variants.map((v) => v.row.run_id));
-  }, [shown, variants]);
+  const visible = useMemo(
+    () => shown ?? defaultShown(variants.map((v) => ({ id: v.row.run_id, info: v.info }))),
+    [shown, variants],
+  );
   const primary =
     variants.find((v) => v.row.run_id === selected && visible.has(v.row.run_id)) ??
     variants.find((v) => visible.has(v.row.run_id) && v.info.placement === "fix_pinned" && v.info.current) ??
@@ -120,7 +133,7 @@ export default function ComparePage() {
     () =>
       variants
         .filter((v) => v !== primary && visible.has(v.row.run_id))
-        .map((v) => ({ key: v.row.run_id, track: v.track, color: v.color })),
+        .map((v) => ({ key: v.row.run_id, track: v.track, color: v.color, dashed: v.dashed })),
     [variants, primary, visible],
   );
 
@@ -163,7 +176,13 @@ export default function ComparePage() {
     ];
     const sepLines = shownVariants
       .filter((v) => v !== primary)
-      .map((v) => ({ ys: separation(base, v.track, idx).map((m) => m / 1000), color: v.color, label: v.info.label, fmt: (x: number) => `${x.toFixed(2)} km` }));
+      .map((v) => ({
+        ys: separation(base, v.track, idx).map((m) => m / 1000),
+        color: v.color,
+        ...(v.dashed ? { dash: "6 3" } : {}),
+        label: v.info.label,
+        fmt: (x: number) => `${x.toFixed(2)} km`,
+      }));
     const out: ChartSeries[] = [
       {
         id: "compare-depth",
@@ -201,6 +220,7 @@ export default function ComparePage() {
   const i = Math.round(pos);
   const key = `compare:${depId}`;
   const recorded = variants.filter((v) => v.info.current !== undefined).length;
+  const deadReckoned = variants.filter((v) => v.dashed).length;
 
   const toggle = (run: string) => {
     const next = new Set(visible);
@@ -238,7 +258,8 @@ export default function ComparePage() {
         <p className="text-sm text-muted">
           {recorded} {recorded === 1 ? "reconstruction" : "reconstructions"} of the same tag data
           {variants.length > recorded && `, plus ${variants.length - recorded} earlier ${variants.length - recorded === 1 ? "export" : "exports"} (hidden until ticked)`}
-          ; only the fixes are measured. Click a row to follow a track. <GuideLink to="currents.html#comparing-reconstructions" />
+          ; only the fixes are measured. Color is the ocean model
+          {deadReckoned > 0 && "; dead reckoning is dashed, and hidden until ticked"}. Click a row to follow a track. <GuideLink to="currents.html#comparing-reconstructions" />
         </p>
       </header>
 
@@ -285,7 +306,7 @@ export default function ComparePage() {
                       <input type="checkbox" checked={on} aria-label={`Show ${v.info.label}`} onChange={() => toggle(v.row.run_id)} />
                     </td>
                     <td className="pr-4">
-                      <span className="mr-2 inline-block h-1 w-5 align-middle" style={{ background: v.color }} />
+                      <Swatch v={v} className="mr-2 w-5" />
                       {v.info.label}
                       {isPrimary && <span className="ml-2 text-xs text-accent">(animal)</span>}
                       <Link
@@ -340,7 +361,7 @@ export default function ComparePage() {
               .filter((v) => visible.has(v.row.run_id))
               .map((v) => (
                 <p key={v.row.run_id}>
-                  <span className="mr-1.5 inline-block h-1 w-4 align-middle" style={{ background: v.color }} />
+                  <Swatch v={v} className="mr-1.5 w-4" />
                   {v.info.label}
                   {v === primary ? " (animal)" : " (dot)"}
                 </p>
