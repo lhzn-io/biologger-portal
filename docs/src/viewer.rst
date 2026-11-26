@@ -34,11 +34,12 @@ tilt, Q and E to zoom).
 
 **Ocean models here.** The link under the readout opens the "Ocean models compared" page on
 longhorizon.blue in a new tab, with NECOFS and DOPPIO side by side at the cursor's hour, at the
-page's depth level nearest the animal's (surface, 10, 25, 50, 100, 200 or 500 m), in a box of about
-70 by 65 km around the animal. The box is centered to 0.1 degree, so the link gives the position only
-to within about 10 km. The comparison page has the same link for the selected track. The fields
-there are the full model grids at that hour; the track used the current at the animal's own position
-and depth, interpolated in time (see `How the current enters a track
+page's depth level nearest the animal's (surface, 10, 25, 50, 100, 200 or 500 m), with undersea
+feature names on, in a box of about 70 by 65 km around the animal. The box is centered to 0.1
+degree, so the link gives the position only to within about 10 km. The comparison page has the same
+link for the selected track. The fields there are the full model grids at that hour; the track used
+the current at the animal's own position and depth, interpolated in time (see
+`How the current enters a track
 <currents.html#how-the-current-enters-a-track>`_).
 
 **Terrain.** The first view of a track can take up to a minute while the hub fetches its

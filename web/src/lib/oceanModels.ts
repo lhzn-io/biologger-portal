@@ -5,10 +5,14 @@
  *
  * The page reads `from` (a UTC day), `t` (an hour, `2025-07-23T19Z`), `bbox` (west,south,east,north) and `depth`
  * (one of its levels; 0 is the surface). The box is centered on the animal to 0.1 degree, so the link places the
- * animal only to within about 10 km.
+ * animal only to within about 10 km. `layers` lists the overlays to show and replaces the page's defaults (colors,
+ * arrows, grid, depth contours), so the link names those along with the undersea feature names it adds.
  */
 
 export const OCEAN_MODELS_URL = "https://longhorizon.blue/northeast-shelf/ocean-models/";
+
+/** The page's default overlays, plus undersea feature names. */
+export const OCEAN_MODEL_LAYERS = "color,arrows,grid,depth,names";
 
 /** The depth levels the page offers, in meters. */
 export const OCEAN_MODEL_DEPTHS = [0, 10, 25, 50, 100, 200, 500] as const;
@@ -36,6 +40,6 @@ export function oceanModelsHref(timeS: number, lat: number, lon: number, depthM:
   const cLon = Math.round(lon * 10) / 10;
   const bbox = [cLon - HALF_LON, cLat - HALF_LAT, cLon + HALF_LON, cLat + HALF_LAT].map(deg).join(",");
   const depth = oceanModelDepth(depthM);
-  const q = `from=${day}&t=${day}T${hour.slice(11, 13)}Z&bbox=${bbox}${depth ? `&depth=${depth}` : ""}`;
+  const q = `from=${day}&t=${day}T${hour.slice(11, 13)}Z&bbox=${bbox}&layers=${OCEAN_MODEL_LAYERS}${depth ? `&depth=${depth}` : ""}`;
   return `${OCEAN_MODELS_URL}?${q}`;
 }
