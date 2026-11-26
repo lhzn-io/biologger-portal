@@ -7,6 +7,7 @@ import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { createVantage, type Vantage } from "../vendor/vantagekit/vantagekit-three.js";
 import { activityColor, LINE_POINTS, segmentMeans } from "./activity";
 import { CurrentArrowLayer } from "./arrowLayer";
+import { DETAIL_HALF_S, detailWindow, keepWindow, refinedIndices, strideStep, wantDetail, type DetailWindow } from "./detail";
 import { loadAnimalModel } from "./animal";
 import { currentColor } from "./current";
 import { inspectorSample, type InspectorOptions } from "./inspector";
@@ -32,7 +33,10 @@ interface SceneState {
   terrain: THREE.Mesh | null;
   terrainZ: Float32Array | null; // elevation (m) per terrain vertex, for rescaling
   line: Line2;
+  /** The samples the line is drawn through now: the stride, refined near the animal when zoomed in (detail.ts). */
   lineIdx: number[];
+  lineStride: number[];
+  lineWin: DetailWindow | null;
   marker: THREE.Group;
   drop: THREE.Line;
   exag: number;
@@ -58,8 +62,13 @@ interface OtherState {
   track: Track;
   line: Line2;
   dashed: boolean;
+  /** As SceneState's lineIdx, lineStride and lineWin, for this track. */
   idx: number[];
+  stride: number[];
+  win: DetailWindow | null;
   dot: THREE.Group;
+  /** This track's sample (fractional) at the cursor time. */
+  at: number;
 }
 
 /** The dot marking another track's position at the cursor time (pixels across, without its outline). */
@@ -198,6 +207,8 @@ export default function Scene3D({
   useEffect(() => {
     tiltOn.current = arrowTilt;
   }, [arrowTilt]);
+  // The track's coloring, for recoloring it when the full-rate stretch near the animal changes (in the loop).
+  const colorArgs = useRef({ colorBy, colorMax, solidColor });
 
   // Build the scene once per track and DEM.
   useEffect(() => {
@@ -341,7 +352,7 @@ export default function Scene3D({
       fill.renderOrder = 11;
       dot.add(ring, fill);
       scene.add(dot);
-      return { track: o.track, line: l, dashed: !!o.dashed, idx, dot };
+      return { track: o.track, line: l, dashed: !!o.dashed, idx, stride: idx, win: null, dot, at: 0 };
     });
 
     // The animal, built at unit length with the head along -z (north at heading 0) and the back along +y, and
@@ -486,7 +497,7 @@ export default function Scene3D({
     const lookAt = new THREE.Vector3(); // the point the camera looks at, for sizing the current arrows
     let chaseAtt: { yaw: number; pitch: number } | null = null; // the attitude the chase camera last turned to
     const st: SceneState = {
-      renderer, scene, camera, nav, terrain, terrainZ, line, lineIdx, marker, drop, exag, frame: 0,
+      renderer, scene, camera, nav, terrain, terrainZ, line, lineIdx, lineStride: lineIdx, lineWin: null, marker, drop, exag, frame: 0,
       trueLen: DEFAULT_LENGTH_M * S, cursor, others: otherStates, inspector: new InspectorView(el), arrows,
     }; // prettier-ignore
     let described = ""; // the inspector settings its corner note was last written for
@@ -559,6 +570,32 @@ export default function Scene3D({
         },
       };
     }
+    // Full rate near an animal (detail.ts): a track's stretch around its own animal is drawn through every sample
+    // once one stride of its path spans DETAIL_ON_PX there, so only tracks near enough to the camera are refined.
+    // `apply` redraws the line through the new samples.
+    const refine = (
+      t: Track,
+      stride: number[],
+      win: DetailWindow | null,
+      at: number,
+      p: THREE.Vector3,
+      apply: (win: DetailWindow | null, idx: number[]) => void,
+    ) => {
+      const step = strideStep(stride);
+      if (step <= 1) return; // already every sample
+      const c = Math.min(Math.max(0, Math.round(at)), t.count - 1);
+      // the path's length over one stride from the animal, so a tight turn counts at its full length
+      const a = Math.min(c, Math.max(0, t.count - 1 - step));
+      let path = 0;
+      for (let i = a; i < a + step && i + 1 < t.count; i++)
+        path += Math.hypot(t.east[i + 1]! - t.east[i]!, (t.depth[i + 1]! - t.depth[i]!) * st.exag, t.north[i + 1]! - t.north[i]!);
+      const px = (path * S) / perPixel(camera.position.distanceTo(p));
+      const half = Math.round(DETAIL_HALF_S * t.manifest.rate_hz);
+      let next = win;
+      if (!wantDetail(win != null, px)) next = null;
+      else if (!win || !keepWindow(win, c, half)) next = detailWindow(stride, c, half);
+      if (next !== win) apply(next, refinedIndices(stride, next));
+    };
     const loop = () => {
       st.frame = requestAnimationFrame(loop);
       const dt = clock.getDelta();
@@ -583,6 +620,23 @@ export default function Scene3D({
       // it would be smaller, so it stays visible from kilometers away.
       st.marker.scale.setScalar(Math.max(st.trueLen, MARKER_PX * perPixel(camera.position.distanceTo(st.marker.position))));
       for (const o of st.others) o.dot.scale.setScalar((DOT_PX / 2) * perPixel(camera.position.distanceTo(o.dot.position)));
+      refine(track, st.lineStride, st.lineWin, st.cursor, st.marker.position, (win, idx) => {
+        st.lineWin = win;
+        st.lineIdx = idx;
+        const g = st.line.geometry as LineGeometry;
+        const ca = colorArgs.current;
+        g.setPositions(linePositions(track, idx, st.exag));
+        g.setColors(lineColors(track, idx, ca.colorBy, ca.colorMax, ca.solidColor));
+      });
+      for (const o of st.others) {
+        if (!o.dot.visible) continue;
+        refine(o.track, o.stride, o.win, o.at, o.dot.position, (win, idx) => {
+          o.win = win;
+          o.idx = idx;
+          (o.line.geometry as LineGeometry).setPositions(linePositions(o.track, idx, st.exag));
+          if (o.dashed) o.line.computeLineDistances();
+        });
+      }
       if (st.arrows) {
         st.arrows.visible = !!arrowsOn.current;
         if (arrowsOn.current) st.arrows.update(st.exag, perPixel(camera.position.distanceTo(nav.controls.getTarget(lookAt))), tiltOn.current);
@@ -731,6 +785,7 @@ export default function Scene3D({
 
   // A new color scale recolors the track in place (the camera stays).
   useEffect(() => {
+    colorArgs.current = { colorBy, colorMax, solidColor };
     const st = state.current;
     if (st) (st.line.geometry as LineGeometry).setColors(lineColors(track, st.lineIdx, colorBy, colorMax, solidColor));
   }, [track, colorBy, colorMax, solidColor]);
@@ -788,6 +843,7 @@ function placeMarker(st: SceneState, track: Track, dem: Dem | null, at: number) 
   for (const o of st.others) {
     const sameClock = o.track.count === track.count && o.track.manifest.t0 === track.manifest.t0;
     const j = sameClock ? at : indexAt(o.track, track.manifest.t0 + valueAt(track.t, at));
+    o.at = j;
     const p = [valueAt(o.track.east, j) * S, -valueAt(o.track.depth, j) * st.exag * S, -valueAt(o.track.north, j) * S];
     o.dot.visible = p.every(Number.isFinite);
     if (o.dot.visible) o.dot.position.set(p[0]!, p[1]!, p[2]!);

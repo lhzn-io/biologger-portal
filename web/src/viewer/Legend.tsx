@@ -125,7 +125,7 @@ export function Legend({
       {activity && (
         <ColorBar
           label={`Animal ODBA (${activity.unit})`}
-          note={`mean per ${Math.round(activity.stretch_s)} s, this track`}
+          note={`mean per ${Math.round(activity.stretch_s)} s (per sample up close), this track`}
           max={activity.max}
           color={(v) => activityColor(v, activity.max)}
           ticks={activity.ticks}
@@ -134,7 +134,7 @@ export function Legend({
       {current && (
         <ColorBar
           label="Ocean current (m/s)"
-          note={`${modelPhrase(current.model)}, mean per ${Math.round(current.stretch_s)} s; gray: no value`}
+          note={`${modelPhrase(current.model)}, mean per ${Math.round(current.stretch_s)} s (per sample up close); gray: no value`}
           max={current.max}
           color={(v) => currentColor(v, current.max)}
           ticks={current.ticks}

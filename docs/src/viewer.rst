@@ -44,6 +44,15 @@ and depth, interpolated in time (see `How the current enters a track
 **Terrain.** The first view of a track can take up to a minute while the hub fetches its
 topobathymetry; later views are cached.
 
+**Track detail.** The 3D view draws a track through about 6000 evenly spaced samples, one every 26 s
+for a 44-hour record at 1 Hz, which turns a minute of tight turning into a few straight chords. Zoomed
+in until the path over one of those stretches spans 6 pixels at the animal, the view draws the 15
+minutes either side of the cursor through every sample, and keeps that stretch centered on the animal
+as it plays. ODBA and current colors there are per sample rather than per stretch. Each track on the
+page decides for itself from where its own animal is, so a reconstruction far behind the one in front
+keeps its stride
+(:src:`web/src/viewer/detail.ts`).
+
 Tags without a magnetometer
 ---------------------------
 

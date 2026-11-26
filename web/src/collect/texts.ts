@@ -145,9 +145,9 @@ export function mapText(
       "colors",
       `terrain by seafloor depth, light blue at 0 m to dark navy at 3000 m and deeper; ` +
         (activity
-          ? `track by ODBA averaged over each drawn stretch of about ${Math.round(activity.stretch_s)} s, pale yellow at 0 through red-orange to dark violet at ${activity.max} ${activity.unit} and above (0 to this track's 98th percentile, rounded up)`
+          ? `track by ODBA averaged over each drawn stretch of about ${Math.round(activity.stretch_s)} s (per sample near the animal when zoomed in), pale yellow at 0 through red-orange to dark violet at ${activity.max} ${activity.unit} and above (0 to this track's 98th percentile, rounded up)`
           : current
-            ? `track by the speed of the ${modelPhrase(current.model)} current the track was corrected with, averaged over each drawn stretch of about ${Math.round(current.stretch_s)} s, pale green at 0 to dark green at ${current.max} m/s and above (0 to this track's 98th percentile, rounded up); gray where the model had no value`
+            ? `track by the speed of the ${modelPhrase(current.model)} current the track was corrected with, averaged over each drawn stretch of about ${Math.round(current.stretch_s)} s (per sample near the animal when zoomed in), pale green at 0 to dark green at ${current.max} m/s and above (0 to this track's 98th percentile, rounded up); gray where the model had no value`
             : `track by the animal's depth, pale yellow at the surface to magenta at ${depth.max} m (a scale fitted to ${span}, rounded up)`),
     ],
   ]);
