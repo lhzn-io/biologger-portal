@@ -8,6 +8,20 @@ viewer, the top right shows the snapshot time instead; hover over it to see the 
 each release is tagged in the repository
 (`releases on GitHub <https://github.com/lhzn-io/biologger-portal/releases>`_).
 
+.. _v0.4.3:
+
+0.4.3 (2026-11-25)
+------------------
+
+- **Track detail up close.** The 3D view draws a track through about 6000 evenly spaced samples (one
+  every 26 s on WHOI.001). Zoomed in until one of those stretches spans 6 pixels at the animal, it now
+  draws the 15 minutes either side of the cursor through every sample, with ODBA and current colors per
+  sample, so tight turns show as the tag recorded them. Each track decides from its own animal's
+  distance, so comparison tracks far in the background keep the stride. See :doc:`viewer` ("Track
+  detail").
+- **Undersea names on the ocean models link.** "Ocean models here" opens longhorizon.blue with undersea
+  feature names on, along with the page's usual overlays.
+
 .. _v0.4.2:
 
 0.4.2 (2026-11-25)
